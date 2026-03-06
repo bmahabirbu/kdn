@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -97,7 +98,8 @@ func TestRootCmd_StorageFlagCustomValue(t *testing.T) {
 	rootCmd.SetOut(buf)
 	rootCmd.SetErr(buf)
 
-	customPath := "/custom/path/storage"
+	tmpDir := t.TempDir()
+	customPath := filepath.Join(tmpDir, "custom", "path", "storage")
 	rootCmd.SetArgs([]string{"--storage", customPath, "version"})
 
 	// Execute the command

@@ -40,6 +40,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -84,6 +85,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -128,6 +130,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime:            "fake",
+			agent:              "test-agent",
 			workspaceConfigDir: configDir,
 		}
 		cmd := &cobra.Command{}
@@ -169,6 +172,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime:            "fake",
+			agent:              "test-agent",
 			workspaceConfigDir: configDir,
 		}
 		cmd := &cobra.Command{}
@@ -238,6 +242,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -277,6 +282,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -307,6 +313,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -331,6 +338,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 			output:  "", // Default empty output
 		}
 		cmd := &cobra.Command{}
@@ -356,6 +364,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 			output:  "json",
 		}
 		cmd := &cobra.Command{}
@@ -415,6 +424,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 			output:  "json",
 		}
 		cmd := &cobra.Command{}
@@ -448,6 +458,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "", // No runtime specified
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -465,6 +476,31 @@ func TestInitCmd_PreRun(t *testing.T) {
 		}
 	})
 
+	t.Run("fails when agent flag is not provided and environment variable is not set", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+
+		c := &initCmd{
+			runtime: "fake",
+			agent:   "", // No agent specified
+		}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail when agent is not specified")
+		}
+
+		if !strings.Contains(err.Error(), "agent is required") {
+			t.Errorf("Expected error to contain 'agent is required', got: %v", err)
+		}
+	})
+
 	t.Run("uses environment variable when runtime flag is not provided", func(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
@@ -475,6 +511,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 			c := &initCmd{
 				runtime: "", // No runtime flag specified
+				agent:   "test-agent",
 			}
 			cmd := &cobra.Command{}
 			cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -493,6 +530,35 @@ func TestInitCmd_PreRun(t *testing.T) {
 		})
 	})
 
+	t.Run("uses environment variable when agent flag is not provided", func(t *testing.T) {
+		// Note: Cannot use t.Parallel() when using t.Setenv()
+
+		t.Run("with valid agent from env", func(t *testing.T) {
+			t.Setenv("KORTEX_CLI_DEFAULT_AGENT", "test-agent")
+
+			tempDir := t.TempDir()
+
+			c := &initCmd{
+				runtime: "fake",
+				agent:   "", // No agent flag specified
+			}
+			cmd := &cobra.Command{}
+			cmd.Flags().String("workspace-configuration", "", "test flag")
+			cmd.Flags().String("storage", tempDir, "test storage flag")
+
+			args := []string{}
+
+			err := c.preRun(cmd, args)
+			if err != nil {
+				t.Fatalf("preRun() failed: %v", err)
+			}
+
+			if c.agent != "test-agent" {
+				t.Errorf("Expected agent to be 'test-agent' from environment variable, got: %s", c.agent)
+			}
+		})
+	})
+
 	t.Run("runtime flag takes precedence over environment variable", func(t *testing.T) {
 		// Note: Cannot use t.Parallel() when using t.Setenv()
 
@@ -503,6 +569,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 			c := &initCmd{
 				runtime: "flag-runtime",
+				agent:   "test-agent",
 			}
 			cmd := &cobra.Command{}
 			cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -517,6 +584,35 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 			if c.runtime != "flag-runtime" {
 				t.Errorf("Expected runtime to be 'flag-runtime', got: %s", c.runtime)
+			}
+		})
+	})
+
+	t.Run("agent flag takes precedence over environment variable", func(t *testing.T) {
+		// Note: Cannot use t.Parallel() when using t.Setenv()
+
+		t.Run("flag overrides env", func(t *testing.T) {
+			t.Setenv("KORTEX_CLI_DEFAULT_AGENT", "env-agent")
+
+			tempDir := t.TempDir()
+
+			c := &initCmd{
+				runtime: "fake",
+				agent:   "flag-agent",
+			}
+			cmd := &cobra.Command{}
+			cmd.Flags().String("workspace-configuration", "", "test flag")
+			cmd.Flags().String("storage", tempDir, "test storage flag")
+
+			args := []string{}
+
+			err := c.preRun(cmd, args)
+			if err != nil {
+				t.Fatalf("preRun() failed: %v", err)
+			}
+
+			if c.agent != "flag-agent" {
+				t.Errorf("Expected agent to be 'flag-agent', got: %s", c.agent)
 			}
 		})
 	})
@@ -553,6 +649,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -595,6 +692,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -621,6 +719,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		c := &initCmd{
 			runtime: "fake",
+			agent:   "test-agent",
 		}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
@@ -646,7 +745,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent"})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -716,7 +815,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -779,7 +878,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--workspace-configuration", configDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", "--workspace-configuration", configDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -844,7 +943,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--workspace-configuration", configDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--workspace-configuration", configDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -909,7 +1008,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd1 := NewRootCmd()
 		buf1 := new(bytes.Buffer)
 		rootCmd1.SetOut(buf1)
-		rootCmd1.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir1})
+		rootCmd1.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir1})
 
 		err := rootCmd1.Execute()
 		if err != nil {
@@ -920,7 +1019,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd2 := NewRootCmd()
 		buf2 := new(bytes.Buffer)
 		rootCmd2.SetOut(buf2)
-		rootCmd2.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir2})
+		rootCmd2.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir2})
 
 		err = rootCmd2.Execute()
 		if err != nil {
@@ -1000,7 +1099,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--verbose"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--verbose"})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1072,7 +1171,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1112,7 +1211,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--name", customName})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--name", customName})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1166,7 +1265,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd1 := NewRootCmd()
 		buf1 := new(bytes.Buffer)
 		rootCmd1.SetOut(buf1)
-		rootCmd1.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir1})
+		rootCmd1.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir1})
 
 		err := rootCmd1.Execute()
 		if err != nil {
@@ -1177,7 +1276,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd2 := NewRootCmd()
 		buf2 := new(bytes.Buffer)
 		rootCmd2.SetOut(buf2)
-		rootCmd2.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir2, "--name", "project"})
+		rootCmd2.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir2, "--name", "project"})
 
 		err = rootCmd2.Execute()
 		if err != nil {
@@ -1188,7 +1287,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd3 := NewRootCmd()
 		buf3 := new(bytes.Buffer)
 		rootCmd3.SetOut(buf3)
-		rootCmd3.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir3, "--name", "project"})
+		rootCmd3.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir3, "--name", "project"})
 
 		err = rootCmd3.Execute()
 		if err != nil {
@@ -1238,7 +1337,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--name", customName, "--verbose"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--name", customName, "--verbose"})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1266,7 +1365,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
 		rootCmd.SetErr(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", nonExistentDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", nonExistentDir})
 
 		err := rootCmd.Execute()
 		if err == nil {
@@ -1308,7 +1407,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
 		rootCmd.SetErr(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", regularFile})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", regularFile})
 
 		err := rootCmd.Execute()
 		if err == nil {
@@ -1344,7 +1443,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--output", "json"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--output", "json"})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1401,7 +1500,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--output", "json", "--verbose"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--output", "json", "--verbose"})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1473,7 +1572,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", nonExistentDir, "--output", "json"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", nonExistentDir, "--output", "json"})
 
 		err := rootCmd.Execute()
 		if err == nil {
@@ -1516,7 +1615,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		rootCmd := NewRootCmd()
 		buf := new(bytes.Buffer)
 		rootCmd.SetOut(buf)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--name", customName, "--output", "json", "--verbose"})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--name", customName, "--output", "json", "--verbose"})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1542,7 +1641,7 @@ func TestInitCmd_E2E(t *testing.T) {
 		customProject := "my-custom-project-id"
 
 		rootCmd := NewRootCmd()
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--project", customProject})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--project", customProject})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1653,7 +1752,7 @@ func TestInitCmd_MultiLevelConfig(t *testing.T) {
 		}
 
 		rootCmd := NewRootCmd()
-		rootCmd.SetArgs([]string{"init", sourcesDir, "--runtime", "fake", "--project", "test-project", "--storage", storageDir})
+		rootCmd.SetArgs([]string{"init", sourcesDir, "--runtime", "fake", "--agent", "test-agent", "--project", "test-project", "--storage", storageDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1705,7 +1804,7 @@ func TestInitCmd_MultiLevelConfig(t *testing.T) {
 		}
 
 		rootCmd := NewRootCmd()
-		rootCmd.SetArgs([]string{"init", sourcesDir, "--runtime", "fake", "--storage", storageDir})
+		rootCmd.SetArgs([]string{"init", sourcesDir, "--runtime", "fake", "--agent", "test-agent", "--storage", storageDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1842,7 +1941,7 @@ func TestInitCmd_MultiLevelConfig(t *testing.T) {
 
 		// No project or agent configs - should still work
 		rootCmd := NewRootCmd()
-		rootCmd.SetArgs([]string{"init", sourcesDir, "--runtime", "fake", "--storage", storageDir})
+		rootCmd.SetArgs([]string{"init", sourcesDir, "--runtime", "fake", "--agent", "test-agent", "--storage", storageDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -1884,7 +1983,7 @@ func TestInitCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 6
+	expectedCount := 5
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

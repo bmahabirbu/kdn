@@ -39,6 +39,7 @@ type fakeInstance struct {
 	accessible bool
 	runtime    RuntimeData
 	project    string
+	agent      string
 }
 
 // Compile-time check to ensure fakeInstance implements Instance interface
@@ -76,6 +77,10 @@ func (f *fakeInstance) GetProject() string {
 	return f.project
 }
 
+func (f *fakeInstance) GetAgent() string {
+	return f.agent
+}
+
 func (f *fakeInstance) Dump() InstanceData {
 	return InstanceData{
 		ID:   f.id,
@@ -86,6 +91,7 @@ func (f *fakeInstance) Dump() InstanceData {
 		},
 		Runtime: f.runtime,
 		Project: f.project,
+		Agent:   f.agent,
 	}
 }
 
@@ -98,6 +104,7 @@ type newFakeInstanceParams struct {
 	Accessible bool
 	Runtime    RuntimeData
 	Project    string
+	Agent      string
 }
 
 // newFakeInstance creates a new fake instance for testing
@@ -110,6 +117,7 @@ func newFakeInstance(params newFakeInstanceParams) Instance {
 		accessible: params.Accessible,
 		runtime:    params.Runtime,
 		project:    params.Project,
+		agent:      params.Agent,
 	}
 }
 
@@ -137,6 +145,7 @@ func fakeInstanceFactory(data InstanceData) (Instance, error) {
 		accessible: true,
 		runtime:    data.Runtime,
 		project:    data.Project,
+		agent:      data.Agent,
 	}, nil
 }
 

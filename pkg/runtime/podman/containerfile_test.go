@@ -43,7 +43,7 @@ func TestGenerateSudoers(t *testing.T) {
 		}
 
 		// Check for the sudo rule
-		if !strings.Contains(result, "claude ALL = !ALL, NOPASSWD: ALLOWED") {
+		if !strings.Contains(result, "agent ALL = !ALL, NOPASSWD: ALLOWED") {
 			t.Error("Expected sudoers to contain correct sudo rule")
 		}
 	})
@@ -54,8 +54,8 @@ func TestGenerateSudoers(t *testing.T) {
 		result := generateSudoers([]string{})
 
 		// Should only have the deny-all rule
-		if !strings.Contains(result, "claude ALL = !ALL") {
-			t.Error("Expected sudoers to contain 'claude ALL = !ALL'")
+		if !strings.Contains(result, "agent ALL = !ALL") {
+			t.Error("Expected sudoers to contain 'agent ALL = !ALL'")
 		}
 
 		// Should not have ALLOWED alias
@@ -116,27 +116,27 @@ func TestGenerateContainerfile(t *testing.T) {
 		if !strings.Contains(result, "ARG GID=1000") {
 			t.Error("Expected GID argument")
 		}
-		if !strings.Contains(result, "USER claude:claude") {
+		if !strings.Contains(result, "USER agent:agent") {
 			t.Error("Expected USER line")
 		}
 
 		// Check for sudoers copy
-		if !strings.Contains(result, "COPY sudoers /etc/sudoers.d/claude") {
+		if !strings.Contains(result, "COPY sudoers /etc/sudoers.d/agent") {
 			t.Error("Expected COPY sudoers line")
 		}
 
 		// Check for sudoers chmod
-		if !strings.Contains(result, "RUN chmod 0440 /etc/sudoers.d/claude") {
+		if !strings.Contains(result, "RUN chmod 0440 /etc/sudoers.d/agent") {
 			t.Error("Expected RUN chmod for sudoers")
 		}
 
 		// Check for PATH environment
-		if !strings.Contains(result, "ENV PATH=/home/claude/.local/bin:/usr/local/bin:/usr/bin") {
+		if !strings.Contains(result, "ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin") {
 			t.Error("Expected PATH environment variable")
 		}
 
 		// Check for Containerfile copy
-		if !strings.Contains(result, "COPY Containerfile /home/claude/Containerfile") {
+		if !strings.Contains(result, "COPY Containerfile /home/agent/Containerfile") {
 			t.Error("Expected COPY Containerfile line")
 		}
 

@@ -69,6 +69,9 @@ type InstanceData struct {
 	// When the workspace is in a subdirectory of the repository, a relative-path suffix is appended
 	// (e.g., "https://github.com/user/repo/pkg/subdir" or "/home/user/my-local-repo/pkg/subdir")
 	Project string `json:"project"`
+	// Agent is the agent name for this instance (e.g., "claude", "goose").
+	// This is used to load agent-specific configuration and determine which agent command to run.
+	Agent string `json:"agent"`
 }
 
 // Instance represents a workspace instance with source and configuration directories.
@@ -93,6 +96,8 @@ type Instance interface {
 	GetRuntimeData() RuntimeData
 	// GetProject returns the project identifier for this instance
 	GetProject() string
+	// GetAgent returns the agent name for this instance
+	GetAgent() string
 	// Dump returns the serializable data of the instance
 	Dump() InstanceData
 }
@@ -113,6 +118,8 @@ type instance struct {
 	Runtime RuntimeData
 	// Project is the project identifier for grouping instances
 	Project string
+	// Agent is the agent name for this instance
+	Agent string
 }
 
 // Compile-time check to ensure instance implements Instance interface
@@ -171,6 +178,11 @@ func (i *instance) GetProject() string {
 	return i.Project
 }
 
+// GetAgent returns the agent name for this instance
+func (i *instance) GetAgent() string {
+	return i.Agent
+}
+
 // Dump returns the serializable data of the instance
 func (i *instance) Dump() InstanceData {
 	return InstanceData{
@@ -182,6 +194,7 @@ func (i *instance) Dump() InstanceData {
 		},
 		Runtime: i.Runtime,
 		Project: i.Project,
+		Agent:   i.Agent,
 	}
 }
 
@@ -248,6 +261,7 @@ func NewInstanceFromData(data InstanceData) (Instance, error) {
 		ConfigDir: data.Paths.Configuration,
 		Runtime:   data.Runtime,
 		Project:   data.Project,
+		Agent:     data.Agent,
 	}, nil
 }
 

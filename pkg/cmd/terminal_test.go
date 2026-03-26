@@ -108,7 +108,7 @@ func TestTerminalCmd_E2E(t *testing.T) {
 
 		// Initialize a workspace
 		rootCmd := NewRootCmd()
-		rootCmd.SetArgs([]string{"init", sourceDir, "--storage", storageDir, "--runtime", "fake"})
+		rootCmd.SetArgs([]string{"init", sourceDir, "--storage", storageDir, "--runtime", "fake", "--agent", "test-agent"})
 		err := rootCmd.Execute()
 		if err != nil {
 			t.Fatalf("Failed to init workspace: %v", err)

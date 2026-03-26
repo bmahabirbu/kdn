@@ -40,6 +40,7 @@ func instanceToWorkspace(instance instances.Instance) api.Workspace {
 		Id:      instance.GetID(),
 		Name:    instance.GetName(),
 		Project: instance.GetProject(),
+		Agent:   instance.GetAgent(),
 		Paths: api.WorkspacePaths{
 			Configuration: instance.GetConfigDir(),
 			Source:        instance.GetSourceDir(),

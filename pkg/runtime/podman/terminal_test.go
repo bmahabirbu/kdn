@@ -35,7 +35,7 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", []string{"bash"})
+		err := rt.Terminal(ctx, "container123", "test-agent", []string{"bash"})
 		if err != nil {
 			t.Fatalf("Terminal() failed: %v", err)
 		}
@@ -54,7 +54,7 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", []string{"claude-code", "--debug"})
+		err := rt.Terminal(ctx, "container123", "test-agent", []string{"claude-code", "--debug"})
 		if err != nil {
 			t.Fatalf("Terminal() failed: %v", err)
 		}
@@ -73,7 +73,7 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "", []string{"bash"})
+		err := rt.Terminal(ctx, "", "test-agent", []string{"bash"})
 		if err == nil {
 			t.Fatal("Expected error for empty instance ID")
 		}
@@ -83,7 +83,27 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 	})
 
-	t.Run("returns error when command is empty", func(t *testing.T) {
+	t.Run("uses agent terminal command when command is empty", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		rt := &podmanRuntime{
+			executor: fakeExec,
+			config:   &fakeConfig{}, // fakeConfig returns ["claude"] as terminal command
+		}
+
+		ctx := context.Background()
+		err := rt.Terminal(ctx, "container123", "test-agent", []string{})
+		if err != nil {
+			t.Fatalf("Terminal() failed: %v", err)
+		}
+
+		// Verify RunInteractive was called with agent's terminal command from fakeConfig
+		expectedArgs := []string{"exec", "-it", "container123", "claude"}
+		fakeExec.AssertRunInteractiveCalledWith(t, expectedArgs...)
+	})
+
+	t.Run("returns error when agent is empty and command is empty", func(t *testing.T) {
 		t.Parallel()
 
 		fakeExec := exec.NewFake()
@@ -92,9 +112,9 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", []string{})
+		err := rt.Terminal(ctx, "container123", "", []string{})
 		if err == nil {
-			t.Fatal("Expected error for empty command")
+			t.Fatal("Expected error for empty agent and empty command")
 		}
 
 		if !errors.Is(err, runtime.ErrInvalidParams) {
@@ -116,7 +136,7 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", []string{"bash"})
+		err := rt.Terminal(ctx, "container123", "test-agent", []string{"bash"})
 		if err == nil {
 			t.Fatal("Expected error to be propagated")
 		}

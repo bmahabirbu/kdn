@@ -27,7 +27,7 @@ var (
 	// ErrInvalidPath is returned when a configuration path is invalid or empty
 	ErrInvalidPath = errors.New("invalid configuration path")
 	// ErrConfigNotFound is returned when a configuration file is not found
-	ErrConfigNotFound = errors.New("configuration file not found")
+	ErrConfigNotFound = errors.New("configuration file not found for podman runtime and agent")
 	// ErrInvalidConfig is returned when configuration validation fails
 	ErrInvalidConfig = errors.New("invalid configuration")
 

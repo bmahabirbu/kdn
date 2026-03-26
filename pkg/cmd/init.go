@@ -99,6 +99,17 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Determine agent: flag takes precedence over environment variable
+	if i.agent == "" {
+		// Check environment variable
+		if envAgent := os.Getenv("KORTEX_CLI_DEFAULT_AGENT"); envAgent != "" {
+			i.agent = envAgent
+		} else {
+			// Neither flag nor environment variable is set
+			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("agent is required: use --agent flag or set KORTEX_CLI_DEFAULT_AGENT environment variable"))
+		}
+	}
+
 	// Get sources directory (default to current directory)
 	i.sourcesDir = "."
 	if len(args) > 0 {
@@ -203,6 +214,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(out, "  ID: %s\n", addedInstance.GetID())
 		fmt.Fprintf(out, "  Name: %s\n", addedInstance.GetName())
 		fmt.Fprintf(out, "  Project: %s\n", addedInstance.GetProject())
+		fmt.Fprintf(out, "  Agent: %s\n", addedInstance.GetAgent())
 		fmt.Fprintf(out, "  Sources directory: %s\n", addedInstance.GetSourceDir())
 		fmt.Fprintf(out, "  Configuration directory: %s\n", addedInstance.GetConfigDir())
 	} else {
@@ -246,22 +258,19 @@ func NewInitCmd() *cobra.Command {
 The sources directory defaults to the current directory (.) if not specified.
 The workspace configuration directory defaults to .kortex/ inside the sources directory if not specified.`,
 		Example: `# Register current directory as workspace
-kortex-cli init --runtime fake
-
-# Register specific directory as workspace
-kortex-cli init --runtime fake /path/to/project
-
-# Register with custom workspace name
-kortex-cli init --runtime fake --name my-project
-
-# Register with custom project identifier
-kortex-cli init --runtime fake --project my-custom-project
-
-# Register with agent-specific configuration
 kortex-cli init --runtime fake --agent claude
 
+# Register specific directory as workspace
+kortex-cli init --runtime fake --agent claude /path/to/project
+
+# Register with custom workspace name
+kortex-cli init --runtime fake --agent claude --name my-project
+
+# Register with custom project identifier
+kortex-cli init --runtime fake --agent goose --project my-custom-project
+
 # Show detailed output
-kortex-cli init --runtime fake --verbose`,
+kortex-cli init --runtime fake --agent claude --verbose`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: c.preRun,
 		RunE:    c.run,
@@ -281,7 +290,7 @@ kortex-cli init --runtime fake --verbose`,
 	cmd.Flags().StringVarP(&c.project, "project", "p", "", "Custom project identifier (default: auto-detected from git repository or source directory)")
 
 	// Add agent flag
-	cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent name for loading agent-specific configuration (optional)")
+	cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent name for loading agent-specific configuration (required if KORTEX_CLI_DEFAULT_AGENT is not set)")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")

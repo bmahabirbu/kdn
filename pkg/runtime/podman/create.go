@@ -24,6 +24,7 @@ import (
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/constants"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
 
@@ -63,6 +64,9 @@ func (p *podmanRuntime) validateCreateParams(params runtime.CreateParams) error 
 	}
 	if params.SourcePath == "" {
 		return fmt.Errorf("%w: source path is required", runtime.ErrInvalidParams)
+	}
+	if params.Agent == "" {
+		return fmt.Errorf("%w: agent is required", runtime.ErrInvalidParams)
 	}
 
 	// Validate dependency paths don't escape above /workspace
@@ -180,9 +184,9 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 				// Convert config path from forward slashes to OS-specific separators
 				confOSPath := filepath.FromSlash(conf)
 				confAbsPath := filepath.Join(homeDir, confOSPath)
-				// HOME in container is /home/claude for the image, this may be different for other images
+				// HOME in container is /home/<user> for the image
 				// Use path.Join for container paths to ensure forward slashes
-				confMountPoint := path.Join("/home/claude", conf)
+				confMountPoint := path.Join(fmt.Sprintf("/home/%s", constants.ContainerUser), conf)
 				args = append(args, "-v", fmt.Sprintf("%s:%s:Z", confAbsPath, confMountPoint))
 			}
 		}
@@ -236,9 +240,8 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load image config: %w", err)
 	}
 
-	// For now, hardcode the agent name as "claude"
-	// In a future update, the agent name will be passed from the init command
-	agentConfig, err := p.config.LoadAgent("claude")
+	// Load agent configuration using the agent name from params
+	agentConfig, err := p.config.LoadAgent(params.Agent)
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load agent config: %w", err)
 	}
@@ -277,6 +280,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		"container_id": containerID,
 		"image_name":   imageName,
 		"source_path":  params.SourcePath,
+		"agent":        params.Agent,
 	}
 
 	return runtime.RuntimeInfo{

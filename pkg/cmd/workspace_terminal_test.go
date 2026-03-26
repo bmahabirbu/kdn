@@ -70,9 +70,10 @@ func TestWorkspaceTerminalCmd_PreRun(t *testing.T) {
 			t.Errorf("Expected id to be 'test-workspace-id', got %s", c.id)
 		}
 
-		// Verify default command is set when no command args provided
-		if len(c.command) != 1 || c.command[0] != "claude" {
-			t.Errorf("Expected default command ['claude'], got %v", c.command)
+		// Verify command is empty when no command args provided
+		// The runtime will choose the agent's terminal command
+		if len(c.command) != 0 {
+			t.Errorf("Expected empty command [], got %v", c.command)
 		}
 	})
 
@@ -174,7 +175,7 @@ func TestWorkspaceTerminalCmd_E2E(t *testing.T) {
 
 		// Initialize a workspace
 		rootCmd := NewRootCmd()
-		rootCmd.SetArgs([]string{"init", sourceDir, "--storage", storageDir, "--runtime", "fake"})
+		rootCmd.SetArgs([]string{"init", sourceDir, "--storage", storageDir, "--runtime", "fake", "--agent", "test-agent"})
 		err := rootCmd.Execute()
 		if err != nil {
 			t.Fatalf("Failed to init workspace: %v", err)

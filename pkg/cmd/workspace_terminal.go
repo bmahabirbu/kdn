@@ -40,12 +40,10 @@ func (w *workspaceTerminalCmd) preRun(cmd *cobra.Command, args []string) error {
 	w.id = args[0]
 
 	// Extract command from args[1:] if provided
+	// If no command is provided, w.command will be empty and the runtime
+	// will use the agent's configured terminal command
 	if len(args) > 1 {
 		w.command = args[1:]
-	} else {
-		// Default command - will be configurable from runtime in PR #94
-		// For now, use the default claude command
-		w.command = []string{"claude"}
 	}
 
 	// Get storage directory from global flag

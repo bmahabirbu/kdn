@@ -45,7 +45,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		stderr := new(bytes.Buffer)
 		rootCmd.SetOut(stdout)
 		rootCmd.SetErr(stderr)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -75,7 +75,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		stderr := new(bytes.Buffer)
 		rootCmd.SetOut(stdout)
 		rootCmd.SetErr(stderr)
-		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--verbose", sourcesDir})
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", "--verbose", sourcesDir})
 
 		err := rootCmd.Execute()
 		if err != nil {
@@ -123,6 +123,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		_, err = manager.Add(context.Background(), instances.AddOptions{
 			Instance:    instance,
 			RuntimeType: "fake",
+			Agent:       "test-agent",
 		})
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
@@ -202,6 +203,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		added, err := manager.Add(context.Background(), instances.AddOptions{
 			Instance:    instance,
 			RuntimeType: "fake",
+			Agent:       "test-agent",
 		})
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
@@ -255,6 +257,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		added, err := manager.Add(context.Background(), instances.AddOptions{
 			Instance:    instance,
 			RuntimeType: "fake",
+			Agent:       "test-agent",
 		})
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
@@ -312,6 +315,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 		added, err := manager.Add(context.Background(), instances.AddOptions{
 			Instance:    instance,
 			RuntimeType: "fake",
+			Agent:       "test-agent",
 		})
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)

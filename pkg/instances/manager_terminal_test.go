@@ -33,15 +33,17 @@ type fakeTerminalRuntime struct {
 
 type terminalCall struct {
 	instanceID string
+	agent      string
 	command    []string
 }
 
 // Compile-time check
 var _ runtime.Terminal = (*fakeTerminalRuntime)(nil)
 
-func (f *fakeTerminalRuntime) Terminal(ctx context.Context, instanceID string, command []string) error {
+func (f *fakeTerminalRuntime) Terminal(ctx context.Context, instanceID string, agent string, command []string) error {
 	f.terminalCalls = append(f.terminalCalls, terminalCall{
 		instanceID: instanceID,
+		agent:      agent,
 		command:    command,
 	})
 	return f.terminalErr
@@ -86,7 +88,7 @@ func TestManager_Terminal(t *testing.T) {
 			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
 			Accessible: true,
 		})
-		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Agent: "test-agent"})
 
 		// Start the instance
 		_ = manager.Start(ctx, added.GetID())
@@ -106,6 +108,10 @@ func TestManager_Terminal(t *testing.T) {
 		call := fakeRT.terminalCalls[0]
 		if call.instanceID != added.GetRuntimeData().InstanceID {
 			t.Errorf("Terminal called with instanceID = %v, want %v", call.instanceID, added.GetRuntimeData().InstanceID)
+		}
+
+		if call.agent != "test-agent" {
+			t.Errorf("Terminal called with agent = %v, want test-agent", call.agent)
 		}
 
 		if len(call.command) != 1 || call.command[0] != "bash" {
@@ -131,7 +137,7 @@ func TestManager_Terminal(t *testing.T) {
 			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
 			Accessible: true,
 		})
-		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Agent: "test-agent"})
 		_ = manager.Start(ctx, added.GetID())
 
 		// Connect with command and arguments
@@ -177,7 +183,7 @@ func TestManager_Terminal(t *testing.T) {
 			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
 			Accessible: true,
 		})
-		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Agent: "test-agent"})
 
 		// Instance is in "created" state (not running)
 		err := manager.Terminal(ctx, added.GetID(), []string{"bash"})
@@ -210,7 +216,7 @@ func TestManager_Terminal(t *testing.T) {
 			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
 			Accessible: true,
 		})
-		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Agent: "test-agent"})
 		_ = manager.Start(ctx, added.GetID())
 
 		// Try to connect - should fail because runtime doesn't support Terminal
@@ -244,7 +250,7 @@ func TestManager_Terminal(t *testing.T) {
 			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
 			Accessible: true,
 		})
-		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Agent: "test-agent"})
 		_ = manager.Start(ctx, added.GetID())
 
 		// Terminal should propagate the runtime error

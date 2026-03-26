@@ -29,7 +29,6 @@ import (
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/exec"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
-	"github.com/kortex-hub/kortex-cli/pkg/system"
 )
 
 func TestValidateDependencyPath(t *testing.T) {
@@ -113,6 +112,7 @@ func TestValidateCreateParams(t *testing.T) {
 			params: runtime.CreateParams{
 				Name:       "test-workspace",
 				SourcePath: tempSourcePath,
+				Agent:      "test_agent",
 			},
 			expectError: false,
 		},
@@ -121,6 +121,7 @@ func TestValidateCreateParams(t *testing.T) {
 			params: runtime.CreateParams{
 				Name:       "",
 				SourcePath: tempSourcePath,
+				Agent:      "test_agent",
 			},
 			expectError: true,
 			errorType:   runtime.ErrInvalidParams,
@@ -130,13 +131,16 @@ func TestValidateCreateParams(t *testing.T) {
 			params: runtime.CreateParams{
 				Name:       "test-workspace",
 				SourcePath: "",
+				Agent:      "test_agent",
 			},
 			expectError: true,
 			errorType:   runtime.ErrInvalidParams,
 		},
 		{
-			name:        "missing both",
-			params:      runtime.CreateParams{},
+			name: "missing both",
+			params: runtime.CreateParams{
+				Agent: "test_agent",
+			},
 			expectError: true,
 			errorType:   runtime.ErrInvalidParams,
 		},
@@ -145,6 +149,7 @@ func TestValidateCreateParams(t *testing.T) {
 			params: runtime.CreateParams{
 				Name:       "test-workspace",
 				SourcePath: tempSourcePath,
+				Agent:      "test_agent",
 				WorkspaceConfig: &workspace.WorkspaceConfiguration{
 					Mounts: &workspace.Mounts{
 						Dependencies: &[]string{"../main"},
@@ -158,6 +163,7 @@ func TestValidateCreateParams(t *testing.T) {
 			params: runtime.CreateParams{
 				Name:       "test-workspace",
 				SourcePath: tempSourcePath,
+				Agent:      "test_agent",
 				WorkspaceConfig: &workspace.WorkspaceConfiguration{
 					Mounts: &workspace.Mounts{
 						Dependencies: &[]string{"../../main"},
@@ -374,6 +380,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: sourcePath,
+			Agent:      "test_agent",
 		}
 		imageName := "kortex-cli-test-workspace"
 
@@ -423,6 +430,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: sourcePath,
+			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
 				Environment: &envVars,
 			},
@@ -474,6 +482,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: currentDir,
+			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
 				Mounts: &mounts,
 			},
@@ -521,6 +530,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: "/path/to/source",
+			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
 				Mounts: &mounts,
 			},
@@ -541,8 +551,8 @@ func TestBuildContainerArgs(t *testing.T) {
 		// Check that configs are mounted
 		argsStr := strings.Join(args, " ")
 
-		expectedClaude := filepath.Join(homeDir, ".claude") + ":/home/claude/.claude:Z"
-		expectedGitconfig := filepath.Join(homeDir, ".gitconfig") + ":/home/claude/.gitconfig:Z"
+		expectedClaude := filepath.Join(homeDir, ".claude") + ":/home/agent/.claude:Z"
+		expectedGitconfig := filepath.Join(homeDir, ".gitconfig") + ":/home/agent/.gitconfig:Z"
 
 		if !strings.Contains(argsStr, expectedClaude) {
 			t.Errorf("Expected .claude config mount: %s", expectedClaude)
@@ -581,6 +591,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: currentDir,
+			Agent:      "test_agent",
 			WorkspaceConfig: &workspace.WorkspaceConfiguration{
 				Environment: &envVars,
 				Mounts:      &mounts,
@@ -617,7 +628,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		if !strings.Contains(argsStr, expectedMainMount) {
 			t.Errorf("Expected dependency mount %q", expectedMainMount)
 		}
-		if !strings.Contains(argsStr, ":/home/claude/.claude:Z") {
+		if !strings.Contains(argsStr, ":/home/agent/.claude:Z") {
 			t.Error("Expected config mount")
 		}
 		if !strings.Contains(argsStr, "-w /workspace/sources") {
@@ -646,11 +657,11 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 		return []byte("container-id-123"), nil
 	}
 
-	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
-
-	// Initialize the runtime with storage
-	if err := p.Initialize(storageDir); err != nil {
-		t.Fatalf("Initialize() failed: %v", err)
+	p := &podmanRuntime{
+		system:     &fakeSystem{},
+		executor:   fakeExec,
+		storageDir: storageDir,
+		config:     &fakeConfig{},
 	}
 
 	fakeLogger := &fakeStepLogger{}
@@ -659,6 +670,7 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 	params := runtime.CreateParams{
 		Name:       "test-workspace",
 		SourcePath: sourcePath,
+		Agent:      "test_agent",
 	}
 
 	_, err := p.Create(ctx, params)
@@ -734,6 +746,7 @@ func TestCreate_StepLogger_FailOnCreateInstanceDirectory(t *testing.T) {
 	params := runtime.CreateParams{
 		Name:       "test-workspace",
 		SourcePath: sourcePath,
+		Agent:      "test_agent",
 	}
 
 	_, err := p.Create(ctx, params)
@@ -791,6 +804,7 @@ func TestCreate_StepLogger_FailOnCreateContainerfile(t *testing.T) {
 	params := runtime.CreateParams{
 		Name:       "test-workspace",
 		SourcePath: sourcePath,
+		Agent:      "test_agent",
 	}
 
 	_, err := p.Create(ctx, params)
@@ -844,11 +858,11 @@ func TestCreate_StepLogger_FailOnBuildImage(t *testing.T) {
 		return nil
 	}
 
-	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
-
-	// Initialize the runtime with storage
-	if err := p.Initialize(storageDir); err != nil {
-		t.Fatalf("Initialize() failed: %v", err)
+	p := &podmanRuntime{
+		system:     &fakeSystem{},
+		executor:   fakeExec,
+		storageDir: storageDir,
+		config:     &fakeConfig{},
 	}
 
 	fakeLogger := &fakeStepLogger{}
@@ -857,6 +871,7 @@ func TestCreate_StepLogger_FailOnBuildImage(t *testing.T) {
 	params := runtime.CreateParams{
 		Name:       "test-workspace",
 		SourcePath: sourcePath,
+		Agent:      "test_agent",
 	}
 
 	_, err := p.Create(ctx, params)
@@ -914,11 +929,11 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 		return []byte("output"), nil
 	}
 
-	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
-
-	// Initialize the runtime with storage
-	if err := p.Initialize(storageDir); err != nil {
-		t.Fatalf("Initialize() failed: %v", err)
+	p := &podmanRuntime{
+		system:     &fakeSystem{},
+		executor:   fakeExec,
+		storageDir: storageDir,
+		config:     &fakeConfig{},
 	}
 
 	fakeLogger := &fakeStepLogger{}
@@ -927,6 +942,7 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 	params := runtime.CreateParams{
 		Name:       "test-workspace",
 		SourcePath: sourcePath,
+		Agent:      "test_agent",
 	}
 
 	_, err := p.Create(ctx, params)
@@ -983,16 +999,17 @@ func TestCreate_CleansUpInstanceDirectory(t *testing.T) {
 			output:    []byte("container123"),
 		}
 
-		p := newWithDeps(system.New(), fakeExec).(*podmanRuntime)
-
-		// Initialize the runtime with storage
-		if err := p.Initialize(storageDir); err != nil {
-			t.Fatalf("Initialize() failed: %v", err)
+		p := &podmanRuntime{
+			system:     &fakeSystem{},
+			executor:   fakeExec,
+			storageDir: storageDir,
+			config:     &fakeConfig{},
 		}
 
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: sourcePath,
+			Agent:      "test_agent",
 		}
 
 		// Before Create, verify instances directory doesn't exist yet
@@ -1023,16 +1040,17 @@ func TestCreate_CleansUpInstanceDirectory(t *testing.T) {
 			output:    nil,
 		}
 
-		p := newWithDeps(system.New(), fakeExec).(*podmanRuntime)
-
-		// Initialize the runtime with storage
-		if err := p.Initialize(storageDir); err != nil {
-			t.Fatalf("Initialize() failed: %v", err)
+		p := &podmanRuntime{
+			system:     &fakeSystem{},
+			executor:   fakeExec,
+			storageDir: storageDir,
+			config:     &fakeConfig{},
 		}
 
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: sourcePath,
+			Agent:      "test_agent",
 		}
 
 		instancesDir := filepath.Join(storageDir, "instances")

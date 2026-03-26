@@ -142,9 +142,10 @@ func TestInstanceToWorkspace(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		// Set ID
+		// Set ID and Agent
 		instanceData := instance.Dump()
 		instanceData.ID = "full-test-id"
+		instanceData.Agent = "claude"
 		instance, _ = instances.NewInstanceFromData(instanceData)
 
 		result := instanceToWorkspace(instance)
@@ -169,6 +170,9 @@ func TestInstanceToWorkspace(t *testing.T) {
 		}
 		if _, exists := parsed["project"]; !exists {
 			t.Error("Expected 'project' field in JSON")
+		}
+		if _, exists := parsed["agent"]; !exists {
+			t.Error("Expected 'agent' field in JSON")
 		}
 		if _, exists := parsed["paths"]; !exists {
 			t.Error("Expected 'paths' field in JSON")

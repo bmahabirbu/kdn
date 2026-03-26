@@ -25,12 +25,29 @@ import (
 var _ runtime.Terminal = (*podmanRuntime)(nil)
 
 // Terminal starts an interactive terminal session inside a running instance.
-func (p *podmanRuntime) Terminal(ctx context.Context, instanceID string, command []string) error {
+func (p *podmanRuntime) Terminal(ctx context.Context, instanceID string, agent string, command []string) error {
 	if instanceID == "" {
 		return fmt.Errorf("%w: instance ID is required", runtime.ErrInvalidParams)
 	}
+
+	// If no command provided, retrieve the terminal command from agent config
 	if len(command) == 0 {
-		return fmt.Errorf("%w: command is required", runtime.ErrInvalidParams)
+		if agent == "" {
+			return fmt.Errorf("%w: agent name is required when command is not provided", runtime.ErrInvalidParams)
+		}
+
+		// Load agent config to get terminal command
+		agentConfig, err := p.config.LoadAgent(agent)
+		if err != nil {
+			return fmt.Errorf("failed to load agent config: %w", err)
+		}
+
+		if len(agentConfig.TerminalCommand) == 0 {
+			return fmt.Errorf("%w: agent %q has no terminal command configured", runtime.ErrInvalidParams, agent)
+		}
+
+		// Use the terminal command from agent config
+		command = agentConfig.TerminalCommand
 	}
 
 	// Build podman exec -it <container> <command...>

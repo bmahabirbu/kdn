@@ -210,12 +210,13 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		Name:            name,
 		SourcePath:      inst.GetSourceDir(),
 		WorkspaceConfig: mergedConfig,
+		Agent:           opts.Agent,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
 	}
 
-	// Create a new instance with the unique ID, name, runtime info, and project
+	// Create a new instance with the unique ID, name, runtime info, project, and agent
 	instanceWithID := &instance{
 		ID:        uniqueID,
 		Name:      name,
@@ -228,6 +229,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 			Info:       runtimeInfo.Info,
 		},
 		Project: project,
+		Agent:   opts.Agent,
 	}
 
 	instances = append(instances, instanceWithID)
@@ -295,6 +297,7 @@ func (m *manager) Start(ctx context.Context, id string) error {
 			Info:       runtimeInfo.Info,
 		},
 		Project: instanceToStart.GetProject(),
+		Agent:   instanceToStart.GetAgent(),
 	}
 
 	instances[index] = updatedInstance
@@ -364,6 +367,7 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 			Info:       runtimeInfo.Info,
 		},
 		Project: instanceToStop.GetProject(),
+		Agent:   instanceToStop.GetAgent(),
 	}
 
 	instances[index] = updatedInstance
@@ -417,8 +421,8 @@ func (m *manager) Terminal(ctx context.Context, id string, command []string) err
 		return fmt.Errorf("runtime %s does not support terminal sessions", runtimeData.Type)
 	}
 
-	// Start terminal session
-	return terminalRT.Terminal(ctx, runtimeData.InstanceID, command)
+	// Start terminal session, passing the agent name
+	return terminalRT.Terminal(ctx, runtimeData.InstanceID, instanceToConnect.GetAgent(), command)
 }
 
 // List returns all registered instances

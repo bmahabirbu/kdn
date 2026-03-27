@@ -18,3 +18,7 @@ go.work
 # Build artifacts
 /kortex-cli
 dist/
+
+# MkDocs build output
+website/site/
+website/docs/*.md

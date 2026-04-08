@@ -112,16 +112,16 @@ this by providing a custom command.
 The workspace must be in a running state. Use 'workspace start' to start a workspace
 before connecting.`,
 		Example: `# Connect using the default agent command (by ID)
-kortex-cli workspace terminal abc123
+kdn workspace terminal abc123
 
 # Connect using the default agent command (by name)
-kortex-cli workspace terminal my-project
+kdn workspace terminal my-project
 
 # Run a bash shell
-kortex-cli workspace terminal abc123 bash
+kdn workspace terminal abc123 bash
 
-# Run a command with flags (use -- to prevent kortex-cli from parsing them)
-kortex-cli workspace terminal abc123 -- bash -c 'echo hello'`,
+# Run a command with flags (use -- to prevent kdn from parsing them)
+kdn workspace terminal abc123 -- bash -c 'echo hello'`,
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: completeRunningWorkspaceID,
 		PreRunE:           c.preRun,

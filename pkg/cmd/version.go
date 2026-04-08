@@ -26,10 +26,10 @@ import (
 func NewVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number of kortex-cli",
+		Short: "Print the version number of kdn",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("kortex-cli version %s\n", version.Version)
+			cmd.Printf("kdn version %s\n", version.Version)
 		},
 	}
 }

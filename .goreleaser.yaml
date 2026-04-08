@@ -21,8 +21,8 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/kortex-cli
-    binary: kortex-cli
+  - main: ./cmd/kdn
+    binary: kdn
     ldflags:
       - -s -w
       - -X github.com/kortex-hub/kortex-cli/pkg/version.Version={{.Version}}

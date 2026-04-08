@@ -1,6 +1,6 @@
 # Website Documentation
 
-This directory contains the MkDocs configuration for automatically generating the kortex-cli documentation website from the repository's README.md.
+This directory contains the MkDocs configuration for automatically generating the kdn documentation website from the repository's README.md.
 
 ## How It Works
 

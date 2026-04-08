@@ -32,11 +32,11 @@ func TestParseExampleCommands(t *testing.T) {
 	}{
 		{
 			name:      "single command",
-			example:   `kortex-cli init`,
+			example:   `kdn init`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
-				if commands[0].Binary != "kortex-cli" {
-					t.Errorf("Expected binary 'kortex-cli', got '%s'", commands[0].Binary)
+				if commands[0].Binary != "kdn" {
+					t.Errorf("Expected binary 'kdn', got '%s'", commands[0].Binary)
 				}
 				if len(commands[0].Args) != 1 || commands[0].Args[0] != "init" {
 					t.Errorf("Expected args [init], got %v", commands[0].Args)
@@ -46,10 +46,10 @@ func TestParseExampleCommands(t *testing.T) {
 		{
 			name: "multiple commands with comments",
 			example: `# Initialize workspace
-kortex-cli init
+kdn init
 
 # List workspaces
-kortex-cli workspace list`,
+kdn workspace list`,
 			wantCount: 2,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if len(commands[0].Args) != 1 || commands[0].Args[0] != "init" {
@@ -62,7 +62,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with long flag using equals",
-			example:   `kortex-cli workspace list --output=json`,
+			example:   `kdn workspace list --output=json`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if commands[0].Flags["output"] != "json" {
@@ -72,7 +72,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with long flag using space",
-			example:   `kortex-cli workspace list --output json`,
+			example:   `kdn workspace list --output json`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if commands[0].Flags["output"] != "json" {
@@ -82,7 +82,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with short flag",
-			example:   `kortex-cli workspace list -o json`,
+			example:   `kdn workspace list -o json`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if commands[0].Flags["o"] != "json" {
@@ -92,7 +92,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with positional argument",
-			example:   `kortex-cli workspace remove abc123`,
+			example:   `kdn workspace remove abc123`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if len(commands[0].Args) != 3 {
@@ -105,7 +105,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with path argument",
-			example:   `kortex-cli init /path/to/project`,
+			example:   `kdn init /path/to/project`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if len(commands[0].Args) != 2 {
@@ -118,7 +118,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with boolean flag",
-			example:   `kortex-cli init --verbose`,
+			example:   `kdn init --verbose`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if _, exists := commands[0].Flags["verbose"]; !exists {
@@ -146,7 +146,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with multiple flags",
-			example:   `kortex-cli init --name my-project --verbose`,
+			example:   `kdn init --name my-project --verbose`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				if commands[0].Flags["name"] != "my-project" {
@@ -159,11 +159,11 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with -- separator",
-			example:   `kortex-cli terminal abc123 -- bash -c 'echo hello'`,
+			example:   `kdn terminal abc123 -- bash -c 'echo hello'`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
-				if commands[0].Binary != "kortex-cli" {
-					t.Errorf("Expected binary 'kortex-cli', got '%s'", commands[0].Binary)
+				if commands[0].Binary != "kdn" {
+					t.Errorf("Expected binary 'kdn', got '%s'", commands[0].Binary)
 				}
 				// Should have: terminal, abc123, bash, -c, echo hello
 				expectedArgs := []string{"terminal", "abc123", "bash", "-c", "echo hello"}
@@ -183,7 +183,7 @@ kortex-cli workspace list`,
 		},
 		{
 			name:      "command with flags before -- separator",
-			example:   `kortex-cli terminal --storage /tmp abc123 -- bash -l`,
+			example:   `kdn terminal --storage /tmp abc123 -- bash -l`,
 			wantCount: 1,
 			checkCommands: func(t *testing.T, commands []ExampleCommand) {
 				// Should have flag before --
@@ -238,7 +238,7 @@ func TestValidateExampleCommand(t *testing.T) {
 	// Helper function to create a fresh command tree for each test
 	createTestCommandTree := func() *cobra.Command {
 		rootCmd := &cobra.Command{
-			Use: "kortex-cli",
+			Use: "kdn",
 		}
 
 		workspaceCmd := &cobra.Command{
@@ -281,8 +281,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "valid command - init",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli init",
-				Binary:      "kortex-cli",
+				Raw:         "kdn init",
+				Binary:      "kdn",
 				Args:        []string{"init"},
 				FlagPresent: map[string]bool{},
 				FlagValues:  map[string]string{},
@@ -292,8 +292,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "valid command - workspace list",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli workspace list",
-				Binary:      "kortex-cli",
+				Raw:         "kdn workspace list",
+				Binary:      "kdn",
 				Args:        []string{"workspace", "list"},
 				FlagPresent: map[string]bool{},
 				FlagValues:  map[string]string{},
@@ -303,8 +303,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "valid command with flag",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli workspace list --output json",
-				Binary:      "kortex-cli",
+				Raw:         "kdn workspace list --output json",
+				Binary:      "kdn",
 				Args:        []string{"workspace", "list"},
 				FlagPresent: map[string]bool{"output": true},
 				FlagValues:  map[string]string{"output": "json"},
@@ -314,8 +314,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "valid command with short flag",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli workspace list -f json",
-				Binary:      "kortex-cli",
+				Raw:         "kdn workspace list -f json",
+				Binary:      "kdn",
 				Args:        []string{"workspace", "list"},
 				FlagPresent: map[string]bool{"f": true},
 				FlagValues:  map[string]string{"f": "json"},
@@ -325,8 +325,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "valid command with persistent flag",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli init --storage /tmp/storage",
-				Binary:      "kortex-cli",
+				Raw:         "kdn init --storage /tmp/storage",
+				Binary:      "kdn",
 				Args:        []string{"init"},
 				FlagPresent: map[string]bool{"storage": true},
 				FlagValues:  map[string]string{"storage": "/tmp/storage"},
@@ -336,8 +336,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "invalid command - non-existent",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli nonexistent",
-				Binary:      "kortex-cli",
+				Raw:         "kdn nonexistent",
+				Binary:      "kdn",
 				Args:        []string{"nonexistent"},
 				FlagPresent: map[string]bool{},
 				FlagValues:  map[string]string{},
@@ -347,8 +347,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "invalid flag",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli init --nonexistent-flag value",
-				Binary:      "kortex-cli",
+				Raw:         "kdn init --nonexistent-flag value",
+				Binary:      "kdn",
 				Args:        []string{"init"},
 				FlagPresent: map[string]bool{"nonexistent-flag": true},
 				FlagValues:  map[string]string{"nonexistent-flag": "value"},
@@ -358,8 +358,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "valid command with multiple flags",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli init --name test --verbose",
-				Binary:      "kortex-cli",
+				Raw:         "kdn init --name test --verbose",
+				Binary:      "kdn",
 				Args:        []string{"init"},
 				FlagPresent: map[string]bool{"name": true, "verbose": true},
 				FlagValues:  map[string]string{"name": "test", "verbose": ""},
@@ -369,8 +369,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "string flag missing value",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli init --name",
-				Binary:      "kortex-cli",
+				Raw:         "kdn init --name",
+				Binary:      "kdn",
 				Args:        []string{"init"},
 				FlagPresent: map[string]bool{"name": true},
 				FlagValues:  map[string]string{"name": ""},
@@ -380,8 +380,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "boolean flag without value is valid",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli init --verbose",
-				Binary:      "kortex-cli",
+				Raw:         "kdn init --verbose",
+				Binary:      "kdn",
 				Args:        []string{"init"},
 				FlagPresent: map[string]bool{"verbose": true},
 				FlagValues:  map[string]string{"verbose": ""},
@@ -391,8 +391,8 @@ func TestValidateExampleCommand(t *testing.T) {
 		{
 			name: "extra positional to leaf command",
 			exampleCmd: ExampleCommand{
-				Raw:         "kortex-cli workspace list extra",
-				Binary:      "kortex-cli",
+				Raw:         "kdn workspace list extra",
+				Binary:      "kdn",
 				Args:        []string{"workspace", "list", "extra"},
 				FlagPresent: map[string]bool{},
 				FlagValues:  map[string]string{},
@@ -429,7 +429,7 @@ func TestValidateCommandExamples(t *testing.T) {
 	// Helper function to create a fresh command tree for each test
 	createTestCommandTree := func() *cobra.Command {
 		rootCmd := &cobra.Command{
-			Use: "kortex-cli",
+			Use: "kdn",
 		}
 
 		initCmd := &cobra.Command{
@@ -452,28 +452,28 @@ func TestValidateCommandExamples(t *testing.T) {
 		{
 			name: "valid examples",
 			example: `# Initialize workspace
-kortex-cli init
+kdn init
 
 # Initialize with name
-kortex-cli init --name my-project
+kdn init --name my-project
 
 # Verbose output
-kortex-cli init --verbose`,
+kdn init --verbose`,
 			wantErr: false,
 		},
 		{
 			name: "invalid command in examples",
 			example: `# Valid command
-kortex-cli init
+kdn init
 
 # Invalid command
-kortex-cli nonexistent`,
+kdn nonexistent`,
 			wantErr: true,
 		},
 		{
 			name: "invalid flag in examples",
 			example: `# Invalid flag
-kortex-cli init --invalid-flag value`,
+kdn init --invalid-flag value`,
 			wantErr: true,
 		},
 		{

@@ -68,12 +68,12 @@ func TestTerminalCmd_ExamplesAdapted(t *testing.T) {
 	terminalCmd := NewTerminalCmd()
 
 	// Verify examples are adapted
-	if !strings.Contains(terminalCmd.Example, "kortex-cli terminal") {
-		t.Error("Expected examples to contain 'kortex-cli terminal'")
+	if !strings.Contains(terminalCmd.Example, "kdn terminal") {
+		t.Error("Expected examples to contain 'kdn terminal'")
 	}
 
-	if strings.Contains(terminalCmd.Example, "kortex-cli workspace terminal") {
-		t.Error("Examples should not contain 'kortex-cli workspace terminal'")
+	if strings.Contains(terminalCmd.Example, "kdn workspace terminal") {
+		t.Error("Examples should not contain 'kdn workspace terminal'")
 	}
 }
 

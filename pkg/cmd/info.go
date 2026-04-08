@@ -107,15 +107,15 @@ func NewInfoCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "info",
-		Short: "Display information about kortex-cli",
+		Short: "Display information about kdn",
 		Example: `# Show info
-kortex-cli info
+kdn info
 
 # Show info in JSON format
-kortex-cli info --output json
+kdn info --output json
 
 # Show info using short flag
-kortex-cli info -o json`,
+kdn info -o json`,
 		Args:    cobra.NoArgs,
 		PreRunE: c.preRun,
 		RunE:    c.run,

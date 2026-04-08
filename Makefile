@@ -17,7 +17,7 @@
 .PHONY: help build test test-coverage fmt vet clean install check-fmt check-vet ci-checks all
 
 # Binary name
-BINARY_NAME=kortex-cli
+BINARY_NAME=kdn
 # Build output directory
 BUILD_DIR=.
 # Go command
@@ -31,14 +31,14 @@ all: build
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {sub("\\\\n",sprintf("\n%22c"," "), $$2);printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-build: ## Build the kortex-cli binary
+build: ## Build the kdn binary
 build:
 	@echo "Building $(BINARY_NAME)..."
-	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/kortex-cli
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/kdn
 
 install: ## Install the binary to GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
-	$(GO) install ./cmd/kortex-cli
+	$(GO) install ./cmd/kdn
 
 test: ## Run all tests
 	@echo "Running tests..."

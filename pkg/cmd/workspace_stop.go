@@ -166,16 +166,16 @@ func NewWorkspaceStopCmd() *cobra.Command {
 		Short: "Stop a workspace",
 		Long:  "Stop a workspace by its name or ID",
 		Example: `# Stop workspace by ID
-kortex-cli workspace stop abc123
+kdn workspace stop abc123
 
 # Stop workspace by name
-kortex-cli workspace stop my-project
+kdn workspace stop my-project
 
 # Stop workspace with JSON output
-kortex-cli workspace stop abc123 --output json
+kdn workspace stop abc123 --output json
 
 # Stop workspace and show runtime command output
-kortex-cli workspace stop abc123 --show-logs`,
+kdn workspace stop abc123 --show-logs`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeRunningWorkspaceID,
 		PreRunE:           c.preRun,

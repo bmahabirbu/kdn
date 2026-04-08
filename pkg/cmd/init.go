@@ -301,28 +301,28 @@ func NewInitCmd() *cobra.Command {
 The sources directory defaults to the current directory (.) if not specified.
 The workspace configuration directory defaults to .kaiden/ inside the sources directory if not specified.`,
 		Example: `# Register current directory as workspace
-kortex-cli init --runtime podman --agent claude
+kdn init --runtime podman --agent claude
 
 # Register specific directory as workspace
-kortex-cli init --runtime podman --agent claude /path/to/project
+kdn init --runtime podman --agent claude /path/to/project
 
 # Register with custom workspace name
-kortex-cli init --runtime podman --agent claude --name my-project
+kdn init --runtime podman --agent claude --name my-project
 
 # Register with custom project identifier
-kortex-cli init --runtime podman --agent goose --project my-custom-project
+kdn init --runtime podman --agent goose --project my-custom-project
 
 # Register with a specific model
-kortex-cli init --runtime podman --agent claude --model claude-sonnet-4-20250514
+kdn init --runtime podman --agent claude --model claude-sonnet-4-20250514
 
 # Register and start workspace
-kortex-cli init --runtime podman --agent claude --start
+kdn init --runtime podman --agent claude --start
 
 # Show detailed output
-kortex-cli init --runtime podman --agent claude --verbose
+kdn init --runtime podman --agent claude --verbose
 
 # Show runtime command output
-kortex-cli init --runtime podman --agent claude --show-logs`,
+kdn init --runtime podman --agent claude --show-logs`,
 		Args:    cobra.MaximumNArgs(1),
 		PreRunE: c.preRun,
 		RunE:    c.run,

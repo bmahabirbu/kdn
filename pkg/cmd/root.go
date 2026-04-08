@@ -39,7 +39,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	rootCmd := &cobra.Command{
-		Use:          "kortex-cli",
+		Use:          "kdn",
 		Short:        "Launch and manage AI agent workspaces with custom configurations",
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
@@ -89,7 +89,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(NewInfoCmd())
 
 	// Global flags
-	rootCmd.PersistentFlags().String("storage", defaultStoragePath, "Directory where kortex-cli will store all its files")
+	rootCmd.PersistentFlags().String("storage", defaultStoragePath, "Directory where kdn will store all its files")
 
 	return rootCmd
 }

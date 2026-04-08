@@ -179,16 +179,16 @@ func NewWorkspaceRemoveCmd() *cobra.Command {
 		Short: "Remove a workspace",
 		Long:  "Remove a workspace by its name or ID",
 		Example: `# Remove workspace by ID
-kortex-cli workspace remove abc123
+kdn workspace remove abc123
 
 # Remove workspace by name
-kortex-cli workspace remove my-project
+kdn workspace remove my-project
 
 # Remove workspace and show runtime command output
-kortex-cli workspace remove abc123 --show-logs
+kdn workspace remove abc123 --show-logs
 
 # Remove a running workspace (stops it first)
-kortex-cli workspace remove abc123 --force`,
+kdn workspace remove abc123 --force`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeRemoveWorkspaceID,
 		PreRunE:           c.preRun,

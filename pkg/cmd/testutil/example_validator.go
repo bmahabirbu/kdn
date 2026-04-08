@@ -25,16 +25,16 @@ import (
 // ExampleCommand represents a parsed command from an Example string
 type ExampleCommand struct {
 	Raw         string            // Original command line
-	Binary      string            // Binary name (should be "kortex-cli")
+	Binary      string            // Binary name (should be "kdn")
 	Args        []string          // Subcommands and positional arguments
 	FlagPresent map[string]bool   // Flags that were present in the command
 	FlagValues  map[string]string // Values for flags (empty string if no value provided)
 	Flags       map[string]string // Deprecated: use FlagPresent and FlagValues instead
 }
 
-// ParseExampleCommands extracts kortex-cli commands from Example string
+// ParseExampleCommands extracts kdn commands from Example string
 // - Ignores empty lines and comment lines (starting with #)
-// - Returns error if non-comment, non-kortex-cli lines exist
+// - Returns error if non-comment, non-kdn lines exist
 func ParseExampleCommands(example string) ([]ExampleCommand, error) {
 	var commands []ExampleCommand
 	lines := strings.Split(example, "\n")
@@ -72,9 +72,9 @@ func parseCommandLine(line string) (ExampleCommand, error) {
 		return ExampleCommand{}, fmt.Errorf("empty command line")
 	}
 
-	// First part should be kortex-cli
-	if parts[0] != "kortex-cli" {
-		return ExampleCommand{}, fmt.Errorf("command must start with 'kortex-cli', got '%s'", parts[0])
+	// First part should be kdn
+	if parts[0] != "kdn" {
+		return ExampleCommand{}, fmt.Errorf("command must start with 'kdn', got '%s'", parts[0])
 	}
 
 	cmd := ExampleCommand{

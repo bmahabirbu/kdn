@@ -29,7 +29,7 @@ func TestMain_VersionSubcommand(t *testing.T) {
 	defer func() { os.Args = oldArgs }()
 
 	// Set os.Args to call the version subcommand
-	os.Args = []string{"kortex-cli", "version"}
+	os.Args = []string{"kdn", "version"}
 
 	// Call main() - test passes if it doesn't panic
 	main()

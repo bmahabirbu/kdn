@@ -166,16 +166,16 @@ func NewWorkspaceStartCmd() *cobra.Command {
 		Short: "Start a workspace",
 		Long:  "Start a workspace by its name or ID",
 		Example: `# Start workspace by ID
-kortex-cli workspace start abc123
+kdn workspace start abc123
 
 # Start workspace by name
-kortex-cli workspace start my-project
+kdn workspace start my-project
 
 # Start workspace with JSON output
-kortex-cli workspace start abc123 --output json
+kdn workspace start abc123 --output json
 
 # Start workspace and show runtime command output
-kortex-cli workspace start abc123 --show-logs`,
+kdn workspace start abc123 --show-logs`,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: completeNonRunningWorkspaceID,
 		PreRunE:           c.preRun,

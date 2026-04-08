@@ -29,59 +29,59 @@ func TestAdaptExampleForAlias(t *testing.T) {
 		{
 			name: "replaces command in simple example",
 			example: `# List all workspaces
-kortex-cli workspace list`,
+kdn workspace list`,
 			originalCmd: "workspace list",
 			aliasCmd:    "list",
 			want: `# List all workspaces
-kortex-cli list`,
+kdn list`,
 		},
 		{
 			name: "replaces command with flags",
 			example: `# List workspaces in JSON format
-kortex-cli workspace list --output json`,
+kdn workspace list --output json`,
 			originalCmd: "workspace list",
 			aliasCmd:    "list",
 			want: `# List workspaces in JSON format
-kortex-cli list --output json`,
+kdn list --output json`,
 		},
 		{
 			name: "replaces multiple occurrences",
 			example: `# List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # List in JSON format
-kortex-cli workspace list --output json
+kdn workspace list --output json
 
 # List using short flag
-kortex-cli workspace list -o json`,
+kdn workspace list -o json`,
 			originalCmd: "workspace list",
 			aliasCmd:    "list",
 			want: `# List all workspaces
-kortex-cli list
+kdn list
 
 # List in JSON format
-kortex-cli list --output json
+kdn list --output json
 
 # List using short flag
-kortex-cli list -o json`,
+kdn list -o json`,
 		},
 		{
 			name: "does not replace in comments",
 			example: `# Use workspace list to see all workspaces
-kortex-cli workspace list`,
+kdn workspace list`,
 			originalCmd: "workspace list",
 			aliasCmd:    "list",
 			want: `# Use workspace list to see all workspaces
-kortex-cli list`,
+kdn list`,
 		},
 		{
 			name: "replaces remove command",
 			example: `# Remove workspace by ID
-kortex-cli workspace remove abc123`,
+kdn workspace remove abc123`,
 			originalCmd: "workspace remove",
 			aliasCmd:    "remove",
 			want: `# Remove workspace by ID
-kortex-cli remove abc123`,
+kdn remove abc123`,
 		},
 		{
 			name:        "handles empty example",
@@ -93,17 +93,17 @@ kortex-cli remove abc123`,
 		{
 			name: "preserves indentation",
 			example: `# List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # Another example
-	kortex-cli workspace list --output json`,
+	kdn workspace list --output json`,
 			originalCmd: "workspace list",
 			aliasCmd:    "list",
 			want: `# List all workspaces
-kortex-cli list
+kdn list
 
 # Another example
-	kortex-cli list --output json`,
+	kdn list --output json`,
 		},
 	}
 

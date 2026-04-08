@@ -24,26 +24,26 @@ import "strings"
 // Example:
 //
 //	original := `# List all workspaces
-//	kortex-cli workspace list
+//	kdn workspace list
 //
 //	# List in JSON format
-//	kortex-cli workspace list --output json`
+//	kdn workspace list --output json`
 //
 //	adapted := AdaptExampleForAlias(original, "workspace list", "list")
 //	// Result:
 //	// `# List all workspaces
-//	// kortex-cli list
+//	// kdn list
 //	//
 //	// # List in JSON format
-//	// kortex-cli list --output json`
+//	// kdn list --output json`
 func AdaptExampleForAlias(example, originalCmd, aliasCmd string) string {
 	lines := strings.Split(example, "\n")
 	var result []string
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		// Only replace in command lines (starting with kortex-cli), not in comments
-		if strings.HasPrefix(trimmed, "kortex-cli ") {
+		// Only replace in command lines (starting with kdn), not in comments
+		if strings.HasPrefix(trimmed, "kdn ") {
 			line = strings.Replace(line, originalCmd, aliasCmd, 1)
 		}
 		result = append(result, line)

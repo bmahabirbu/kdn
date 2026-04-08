@@ -26,7 +26,7 @@ func NewWorkspaceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "workspace",
 		Short: "Manage workspaces",
-		Long:  "Manage workspaces registered with kortex-cli init",
+		Long:  "Manage workspaces registered with kdn init",
 		Args:  cobra.NoArgs,
 	}
 

@@ -197,15 +197,15 @@ func NewWorkspaceListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all registered workspaces",
-		Long:  "List all workspaces registered with kortex-cli init",
+		Long:  "List all workspaces registered with kdn init",
 		Example: `# List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # List workspaces in JSON format
-kortex-cli workspace list --output json
+kdn workspace list --output json
 
 # List using short flag
-kortex-cli workspace list -o json`,
+kdn workspace list -o json`,
 		Args:    cobra.NoArgs,
 		PreRunE: c.preRun,
 		RunE:    c.run,

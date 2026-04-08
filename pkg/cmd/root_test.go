@@ -29,8 +29,8 @@ func TestRootCmd_Initialization(t *testing.T) {
 	t.Parallel()
 
 	rootCmd := NewRootCmd()
-	if rootCmd.Use != "kortex-cli" {
-		t.Errorf("Expected Use to be 'kortex-cli', got '%s'", rootCmd.Use)
+	if rootCmd.Use != "kdn" {
+		t.Errorf("Expected Use to be 'kdn', got '%s'", rootCmd.Use)
 	}
 
 	if rootCmd.Short == "" {

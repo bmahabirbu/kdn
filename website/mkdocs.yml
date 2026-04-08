@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Site metadata
-site_name: kortex-cli Documentation
+site_name: kdn Documentation
 site_description: Command-line interface for launching and managing AI agents (Claude Code, Goose, Cursor) with custom configurations
 site_author: Red Hat
 site_url: https://kortex-hub.github.io/kortex-cli/
@@ -129,7 +129,7 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/kortex-hub/kortex-cli
-      name: kortex-cli on GitHub
+      name: kdn on GitHub
   generator: false  # Don't show "Made with Material for MkDocs"
 
 # Additional CSS and JavaScript (if needed in future)

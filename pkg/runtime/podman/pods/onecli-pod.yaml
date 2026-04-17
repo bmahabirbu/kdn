@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{.Name}}
+  labels:
+    app: onecli
+spec:
+  restartPolicy: Always
+  containers:
+    - name: postgres
+      image: postgres:18-alpine
+      env:
+        - name: POSTGRES_USER
+          value: "onecli"
+        - name: POSTGRES_PASSWORD
+          value: "onecli"
+        - name: POSTGRES_DB
+          value: "onecli"
+      ports:
+        - containerPort: 5432
+          hostPort: {{.PostgresPort}}
+          hostIP: "127.0.0.1"
+      readinessProbe:
+        exec:
+          command:
+            - pg_isready
+            - "-U"
+            - onecli
+        initialDelaySeconds: 15
+        periodSeconds: 5
+        timeoutSeconds: 3
+        failureThreshold: 10
+
+    - name: onecli
+      image: ghcr.io/onecli/onecli:{{.OnecliVersion}}
+      env:
+        - name: DATABASE_URL
+          value: "postgresql://onecli:onecli@localhost:5432/onecli"
+        - name: NEXTAUTH_SECRET
+          value: ""
+        - name: NEXT_PUBLIC_APP_URL
+          value: "http://127.0.0.1:10254"
+        - name: APP_URL
+          value: "http://127.0.0.1:10254"
+      ports:
+        - containerPort: 10254
+          hostPort: {{.OnecliWebPort}}
+          hostIP: "127.0.0.1"
+        - containerPort: 10255
+          hostPort: {{.OnecliProxyPort}}
+          hostIP: "127.0.0.1"

@@ -15,18 +15,33 @@
 package podman
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
+	"github.com/openkaiden/kdn/pkg/runtime/podman/pods"
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
+
+const defaultOnecliVersion = "1.17"
+
+// podTemplateData holds the values used to render the pod YAML template.
+type podTemplateData struct {
+	Name            string
+	PostgresPort    int
+	OnecliWebPort   int
+	OnecliProxyPort int
+	OnecliVersion   string
+}
 
 // validateCreateParams validates the create parameters.
 func (p *podmanRuntime) validateCreateParams(params runtime.CreateParams) error {
@@ -114,19 +129,16 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 	return nil
 }
 
-// buildContainerArgs builds the arguments for creating a podman container.
+// buildContainerArgs builds the arguments for creating the workspace container inside the pod.
 func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string) ([]string, error) {
-	args := []string{"create", "--name", params.Name}
+	args := []string{"create", "--pod", params.Name, "--name", params.Name}
 
 	// Add environment variables from workspace config
 	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Environment != nil {
 		for _, env := range *params.WorkspaceConfig.Environment {
 			if env.Value != nil {
-				// Regular environment variable with a value
 				args = append(args, "-e", fmt.Sprintf("%s=%s", env.Name, *env.Value))
 			} else if env.Secret != nil {
-				// Secret reference - use podman --secret flag
-				// Format: --secret <secret-name>,type=env,target=<ENV_VAR_NAME>
 				secretArg := fmt.Sprintf("%s,type=env,target=%s", *env.Secret, env.Name)
 				args = append(args, "--secret", secretArg)
 			}
@@ -134,7 +146,6 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 	}
 
 	// Mount the source directory at /workspace/sources
-	// This allows symlinks to work correctly with dependencies
 	args = append(args, "-v", fmt.Sprintf("%s:/workspace/sources:Z", params.SourcePath))
 
 	// Mount additional directories if specified
@@ -170,7 +181,38 @@ func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (str
 	return strings.TrimSpace(string(output)), nil
 }
 
+// findFreePorts returns n free TCP ports on 127.0.0.1.
+// Each port is obtained by binding to :0 and immediately closing the listener.
+func findFreePorts(n int) ([]int, error) {
+	ports := make([]int, 0, n)
+	for range n {
+		l, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return nil, fmt.Errorf("failed to find free port: %w", err)
+		}
+		port := l.Addr().(*net.TCPAddr).Port
+		l.Close()
+		ports = append(ports, port)
+	}
+	return ports, nil
+}
+
+// renderPodYAML renders the embedded pod YAML template with the given data.
+func renderPodYAML(data podTemplateData) ([]byte, error) {
+	tmpl, err := template.New("pod").Parse(string(pods.OnecliPodYAML))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse pod template: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return nil, fmt.Errorf("failed to render pod template: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
 // Create creates a new Podman runtime instance.
+// It uses kube play to create a pod with onecli services from the embedded YAML template,
+// then adds the workspace container to the same pod.
 func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
 	stepLogger := steplogger.FromContext(ctx)
 	defer stepLogger.Complete()
@@ -187,8 +229,6 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
-	// Clean up instance directory after use (whether success or error)
-	// The Containerfile and sudoers are only needed during image build
 	defer os.RemoveAll(instanceDir)
 
 	// Load configurations
@@ -197,7 +237,6 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load image config: %w", err)
 	}
 
-	// Load agent configuration using the agent name from params
 	agentConfig, err := p.config.LoadAgent(params.Agent)
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load agent config: %w", err)
@@ -218,18 +257,53 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Build container creation arguments
+	// Allocate random free ports for the pod
+	freePorts, err := findFreePorts(3)
+	if err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to allocate free ports: %w", err)
+	}
+
+	// Render the pod YAML template
+	tmplData := podTemplateData{
+		Name:            params.Name,
+		PostgresPort:    freePorts[0],
+		OnecliWebPort:   freePorts[1],
+		OnecliProxyPort: freePorts[2],
+		OnecliVersion:   defaultOnecliVersion,
+	}
+
+	tmpPodDir := filepath.Join(instanceDir, "pod")
+	if err := os.MkdirAll(tmpPodDir, 0755); err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create temp pod directory: %w", err)
+	}
+	tmpYAMLPath := filepath.Join(tmpPodDir, podYAMLFile)
+	if err := writePodYAMLFile(tmpYAMLPath, tmplData); err != nil {
+		return runtime.RuntimeInfo{}, err
+	}
+
+	// Create the pod with onecli services via kube play (--start=false keeps all containers stopped)
+	stepLogger.Start("Creating onecli services", "Onecli services created")
+	l := logger.FromContext(ctx)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "kube", "play", "--start=false", tmpYAMLPath); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create pod via kube play: %w", err)
+	}
+
+	// Add the workspace container to the pod
+	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", params.Name), "Workspace container created")
 	createArgs, err := p.buildContainerArgs(params, imageName)
 	if err != nil {
 		return runtime.RuntimeInfo{}, err
 	}
-
-	// Create container and get its ID directly from podman create output
-	stepLogger.Start(fmt.Sprintf("Creating container: %s", params.Name), "Container created")
 	containerID, err := p.createContainer(ctx, createArgs)
 	if err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
+	}
+
+	// Persist pod files keyed by the workspace container ID
+	if err := p.writePodFiles(containerID, tmplData); err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to persist pod files: %w", err)
 	}
 
 	// Return RuntimeInfo
@@ -245,4 +319,16 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		State: api.WorkspaceStateStopped,
 		Info:  info,
 	}, nil
+}
+
+// writePodYAMLFile renders and writes the pod YAML template to the given path.
+func writePodYAMLFile(path string, data podTemplateData) error {
+	content, err := renderPodYAML(data)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, content, 0644); err != nil {
+		return fmt.Errorf("failed to write pod YAML: %w", err)
+	}
+	return nil
 }

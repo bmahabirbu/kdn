@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
@@ -91,7 +92,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 		storageDir := t.TempDir()
 		rt := newWithDeps(system.New(), exec.New())
 
-		// Type assert to StorageAware to access Initialize method
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
@@ -102,19 +102,16 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Initialize() failed: %v", err)
 		}
 
-		// Verify config directory was created
 		configDir := filepath.Join(storageDir, "config")
 		if _, err := os.Stat(configDir); os.IsNotExist(err) {
 			t.Error("Config directory was not created")
 		}
 
-		// Verify default image config was created
 		imageConfigPath := filepath.Join(configDir, config.ImageConfigFileName)
 		if _, err := os.Stat(imageConfigPath); os.IsNotExist(err) {
 			t.Error("Default image config was not created")
 		}
 
-		// Verify default claude config was created
 		claudeConfigPath := filepath.Join(configDir, config.ClaudeConfigFileName)
 		if _, err := os.Stat(claudeConfigPath); os.IsNotExist(err) {
 			t.Error("Default claude config was not created")
@@ -126,7 +123,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 
 		rt := newWithDeps(system.New(), exec.New())
 
-		// Type assert to StorageAware to access Initialize method
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
@@ -144,19 +140,16 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 		storageDir := t.TempDir()
 		rt := newWithDeps(system.New(), exec.New())
 
-		// Type assert to StorageAware to access Initialize method
 		storageAware, ok := rt.(interface{ Initialize(string) error })
 		if !ok {
 			t.Fatal("Expected runtime to implement StorageAware interface")
 		}
 
-		// Initialize once to create defaults
 		err := storageAware.Initialize(storageDir)
 		if err != nil {
 			t.Fatalf("First Initialize() failed: %v", err)
 		}
 
-		// Modify the image config
 		configDir := filepath.Join(storageDir, "config")
 		imageConfigPath := filepath.Join(configDir, config.ImageConfigFileName)
 		customContent := []byte(`{"version":"40","packages":[],"sudo":[],"run_commands":[]}`)
@@ -164,7 +157,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Failed to write custom config: %v", err)
 		}
 
-		// Initialize again
 		rt2 := newWithDeps(system.New(), exec.New())
 		storageAware2, ok := rt2.(interface{ Initialize(string) error })
 		if !ok {
@@ -176,7 +168,6 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 			t.Fatalf("Second Initialize() failed: %v", err)
 		}
 
-		// Verify custom config was not overwritten
 		content, err := os.ReadFile(imageConfigPath)
 		if err != nil {
 			t.Fatalf("Failed to read config: %v", err)
@@ -184,6 +175,248 @@ func TestPodmanRuntime_Initialize(t *testing.T) {
 
 		if string(content) != string(customContent) {
 			t.Error("Custom config was overwritten")
+		}
+	})
+}
+
+func TestWritePodFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates YAML with workspace-specific pod name and ports", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+		containerID := "abc123"
+
+		data := podTemplateData{
+			Name:            "my-project",
+			PostgresPort:    30000,
+			OnecliWebPort:   30001,
+			OnecliProxyPort: 30002,
+			OnecliVersion:   "1.17",
+		}
+
+		err := p.writePodFiles(containerID, data)
+		if err != nil {
+			t.Fatalf("writePodFiles() failed: %v", err)
+		}
+
+		content, err := os.ReadFile(p.podYAMLPath(containerID))
+		if err != nil {
+			t.Fatalf("Failed to read pod YAML: %v", err)
+		}
+
+		yamlStr := string(content)
+
+		if !strings.Contains(yamlStr, "  name: my-project\n") {
+			t.Error("Pod YAML should contain workspace-specific pod name 'my-project'")
+		}
+
+		if !strings.Contains(yamlStr, "- name: onecli\n") {
+			t.Error("Container name within pod should remain 'onecli'")
+		}
+
+		if !strings.Contains(yamlStr, "hostPort: 30000") {
+			t.Error("Pod YAML should contain postgres hostPort 30000")
+		}
+		if !strings.Contains(yamlStr, "hostPort: 30001") {
+			t.Error("Pod YAML should contain onecli web hostPort 30001")
+		}
+		if !strings.Contains(yamlStr, "hostPort: 30002") {
+			t.Error("Pod YAML should contain onecli proxy hostPort 30002")
+		}
+		if !strings.Contains(yamlStr, "ghcr.io/onecli/onecli:1.17") {
+			t.Error("Pod YAML should contain versioned onecli image")
+		}
+	})
+
+	t.Run("writes pod name file", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+		containerID := "def456"
+
+		data := podTemplateData{
+			Name:            "test-ws",
+			PostgresPort:    40000,
+			OnecliWebPort:   40001,
+			OnecliProxyPort: 40002,
+			OnecliVersion:   "1.17",
+		}
+
+		err := p.writePodFiles(containerID, data)
+		if err != nil {
+			t.Fatalf("writePodFiles() failed: %v", err)
+		}
+
+		name, err := p.readPodName(containerID)
+		if err != nil {
+			t.Fatalf("readPodName() failed: %v", err)
+		}
+
+		if name != "test-ws" {
+			t.Errorf("readPodName() = %q, want %q", name, "test-ws")
+		}
+	})
+
+	t.Run("returns error for missing pod name file", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+
+		_, err := p.readPodName("nonexistent")
+		if err == nil {
+			t.Error("Expected error for missing pod name file, got nil")
+		}
+	})
+}
+
+func TestCleanupPodFiles(t *testing.T) {
+	t.Parallel()
+
+	p := &podmanRuntime{storageDir: t.TempDir()}
+	containerID := "abc123"
+
+	data := podTemplateData{
+		Name:            "my-ws",
+		PostgresPort:    50000,
+		OnecliWebPort:   50001,
+		OnecliProxyPort: 50002,
+		OnecliVersion:   "1.17",
+	}
+
+	if err := p.writePodFiles(containerID, data); err != nil {
+		t.Fatalf("writePodFiles() failed: %v", err)
+	}
+
+	if _, err := os.Stat(p.podDir(containerID)); os.IsNotExist(err) {
+		t.Fatal("Pod directory should exist before cleanup")
+	}
+
+	p.cleanupPodFiles(containerID)
+
+	if _, err := os.Stat(p.podDir(containerID)); !os.IsNotExist(err) {
+		t.Error("Pod directory should be removed after cleanup")
+	}
+}
+
+func TestRenderPodYAML(t *testing.T) {
+	t.Parallel()
+
+	t.Run("renders all template fields", func(t *testing.T) {
+		t.Parallel()
+
+		data := podTemplateData{
+			Name:            "my-project",
+			PostgresPort:    32100,
+			OnecliWebPort:   32101,
+			OnecliProxyPort: 32102,
+			OnecliVersion:   "1.17",
+		}
+
+		result, err := renderPodYAML(data)
+		if err != nil {
+			t.Fatalf("renderPodYAML() failed: %v", err)
+		}
+
+		yamlStr := string(result)
+
+		if !strings.Contains(yamlStr, "  name: my-project\n") {
+			t.Error("Expected rendered YAML to contain pod name 'my-project'")
+		}
+		if !strings.Contains(yamlStr, "hostPort: 32100") {
+			t.Error("Expected rendered YAML to contain postgres hostPort 32100")
+		}
+		if !strings.Contains(yamlStr, "hostPort: 32101") {
+			t.Error("Expected rendered YAML to contain onecli web hostPort 32101")
+		}
+		if !strings.Contains(yamlStr, "hostPort: 32102") {
+			t.Error("Expected rendered YAML to contain onecli proxy hostPort 32102")
+		}
+		if !strings.Contains(yamlStr, "ghcr.io/onecli/onecli:1.17") {
+			t.Error("Expected rendered YAML to contain versioned onecli image")
+		}
+		if strings.Contains(yamlStr, "volumeMounts") {
+			t.Error("Expected rendered YAML to NOT contain volumeMounts")
+		}
+		if strings.Contains(yamlStr, "volumes:") {
+			t.Error("Expected rendered YAML to NOT contain volumes section")
+		}
+	})
+
+	t.Run("does not contain original template placeholders", func(t *testing.T) {
+		t.Parallel()
+
+		data := podTemplateData{
+			Name:            "test",
+			PostgresPort:    10000,
+			OnecliWebPort:   10001,
+			OnecliProxyPort: 10002,
+			OnecliVersion:   "2.0",
+		}
+
+		result, err := renderPodYAML(data)
+		if err != nil {
+			t.Fatalf("renderPodYAML() failed: %v", err)
+		}
+
+		yamlStr := string(result)
+
+		if strings.Contains(yamlStr, "{{") || strings.Contains(yamlStr, "}}") {
+			t.Error("Expected rendered YAML to not contain any template placeholders")
+		}
+	})
+}
+
+func TestFindFreePorts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns requested number of ports", func(t *testing.T) {
+		t.Parallel()
+
+		ports, err := findFreePorts(3)
+		if err != nil {
+			t.Fatalf("findFreePorts() failed: %v", err)
+		}
+
+		if len(ports) != 3 {
+			t.Fatalf("Expected 3 ports, got %d", len(ports))
+		}
+
+		for i, port := range ports {
+			if port <= 0 || port > 65535 {
+				t.Errorf("Port %d has invalid value: %d", i, port)
+			}
+		}
+	})
+
+	t.Run("returns unique ports", func(t *testing.T) {
+		t.Parallel()
+
+		ports, err := findFreePorts(3)
+		if err != nil {
+			t.Fatalf("findFreePorts() failed: %v", err)
+		}
+
+		seen := make(map[int]bool)
+		for _, port := range ports {
+			if seen[port] {
+				t.Errorf("Duplicate port found: %d", port)
+			}
+			seen[port] = true
+		}
+	})
+
+	t.Run("returns zero ports for zero count", func(t *testing.T) {
+		t.Parallel()
+
+		ports, err := findFreePorts(0)
+		if err != nil {
+			t.Fatalf("findFreePorts() failed: %v", err)
+		}
+
+		if len(ports) != 0 {
+			t.Errorf("Expected 0 ports, got %d", len(ports))
 		}
 	})
 }
@@ -198,7 +431,6 @@ func TestPodmanRuntime_WorkspaceSourcesPath(t *testing.T) {
 		t.Errorf("WorkspaceSourcesPath() = %q, want %q", path, "/workspace/sources")
 	}
 
-	// Verify it's consistent across calls
 	path2 := rt.WorkspaceSourcesPath()
 	if path != path2 {
 		t.Errorf("WorkspaceSourcesPath() inconsistent: %q != %q", path, path2)
@@ -254,7 +486,6 @@ func TestPodmanRuntime_ListAgents(t *testing.T) {
 			t.Fatalf("ListAgents() failed: %v", err)
 		}
 
-		// Default initialization creates config files for all default agents
 		expected := []string{"claude", "cursor", "goose", "opencode"}
 		if !slices.Equal(agents, expected) {
 			t.Errorf("Expected %v, got: %v", expected, agents)

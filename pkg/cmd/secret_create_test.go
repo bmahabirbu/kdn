@@ -19,6 +19,7 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"strings"
 	"testing"
@@ -86,7 +87,7 @@ func TestSecretCreateCmd_Examples(t *testing.T) {
 		t.Fatalf("failed to parse examples: %v", err)
 	}
 
-	expectedCount := 3
+	expectedCount := 4
 	if len(commands) != expectedCount {
 		t.Errorf("expected %d example commands, got %d", expectedCount, len(commands))
 	}
@@ -244,6 +245,19 @@ func TestSecretCreateCmd_PreRun(t *testing.T) {
 			t.Error("expected store to be initialised")
 		}
 	})
+
+	t.Run("json output silences errors", func(t *testing.T) {
+		t.Parallel()
+
+		c := &secretCreateCmd{secretType: "github", value: "ghp_token", output: "json", validTypes: testValidTypes}
+		cmd := buildPreRunCmd(t.TempDir())
+		if err := c.preRun(cmd, []string{"my-token"}); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if !cmd.SilenceErrors {
+			t.Error("expected cmd.SilenceErrors to be true when output is json")
+		}
+	})
 }
 
 func TestSecretCreateCmd_Run(t *testing.T) {
@@ -308,4 +322,69 @@ func TestSecretCreateCmd_Run(t *testing.T) {
 			t.Fatal("expected error when store fails")
 		}
 	})
+
+	t.Run("json output contains secret name", func(t *testing.T) {
+		t.Parallel()
+
+		fs := &fakeStore{}
+		c := &secretCreateCmd{
+			secretType: "github",
+			value:      "ghp_token",
+			output:     "json",
+			store:      fs,
+			validTypes: testValidTypes,
+		}
+
+		root := &cobra.Command{}
+		var out bytes.Buffer
+		root.SetOut(&out)
+		child := &cobra.Command{RunE: c.run}
+		root.AddCommand(child)
+
+		if err := child.RunE(child, []string{"my-github-token"}); err != nil {
+			t.Fatalf("run() failed: %v", err)
+		}
+		output := out.String()
+		if !strings.Contains(output, `"name"`) {
+			t.Errorf("expected 'name' key in JSON output, got: %s", output)
+		}
+		if !strings.Contains(output, `"my-github-token"`) {
+			t.Errorf("expected secret name in JSON output, got: %s", output)
+		}
+	})
+}
+
+func TestSecretCreateCmd_TypeFlagCompletion(t *testing.T) {
+	t.Parallel()
+
+	cmd := NewSecretCreateCmd()
+	completionFunc, ok := cmd.GetFlagCompletionFunc("type")
+	if !ok {
+		t.Fatal("expected completion function registered for --type flag")
+	}
+
+	completions, directive := completionFunc(cmd, []string{}, "")
+	if directive != cobra.ShellCompDirectiveNoFileComp {
+		t.Errorf("expected ShellCompDirectiveNoFileComp, got %v", directive)
+	}
+	found := false
+	for _, c := range completions {
+		if c == "other" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected 'other' in completions, got %v", completions)
+	}
+}
+
+func TestSecretCreateCmd_PreRun_InvalidOutput(t *testing.T) {
+	t.Parallel()
+
+	c := &secretCreateCmd{output: "xml", validTypes: testValidTypes}
+	cmd := buildPreRunCmd(t.TempDir())
+	if err := c.preRun(cmd, []string{"name"}); err == nil {
+		t.Fatal("expected error for unsupported output format")
+	}
 }

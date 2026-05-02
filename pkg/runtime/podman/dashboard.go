@@ -36,9 +36,13 @@ func (p *podmanRuntime) GetURL(ctx context.Context, instanceID string) (string, 
 	if info.State != api.WorkspaceStateRunning {
 		return "", fmt.Errorf("workspace is not running")
 	}
-	tmplData, err := p.readPodTemplateData(instanceID)
+	podName, err := p.readPodName(instanceID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get dashboard URL: %w", err)
+		return "", fmt.Errorf("failed to resolve pod name: %w", err)
 	}
-	return fmt.Sprintf("http://localhost:%d", tmplData.OnecliWebPort), nil
+	port, err := p.discoverOnecliPort(ctx, podName)
+	if err != nil {
+		return "", fmt.Errorf("failed to discover OneCLI port: %w", err)
+	}
+	return fmt.Sprintf("http://localhost:%d", port), nil
 }

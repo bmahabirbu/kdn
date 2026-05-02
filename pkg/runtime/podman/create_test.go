@@ -413,15 +413,15 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
 
-		// Verify basic structure (includes --pod for single-pod architecture)
+		// Verify basic structure (includes --network for isolated network architecture)
 		expectedArgs := []string{
 			"create",
-			"--pod", "test-workspace",
+			"--network", "kdn-test-workspace",
 			"--name", "test-workspace",
 			"--device", "/dev/fuse",
 			"-v", fmt.Sprintf("%s:/workspace/sources:Z", sourcePath),
@@ -468,7 +468,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -517,7 +517,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -554,7 +554,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -605,7 +605,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			caContainerPath: "/etc/ssl/certs/onecli-ca.pem",
 		}
 
-		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", ccArgs)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -621,10 +621,10 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 
 		// Verify NO_PROXY is injected so local addresses bypass the proxy
-		if !strings.Contains(argsStr, "-e NO_PROXY=localhost,127.0.0.1,host.containers.internal") {
+		if !strings.Contains(argsStr, "-e NO_PROXY=localhost,127.0.0.1") {
 			t.Errorf("Expected NO_PROXY env var in args: %s", argsStr)
 		}
-		if !strings.Contains(argsStr, "-e no_proxy=localhost,127.0.0.1,host.containers.internal") {
+		if !strings.Contains(argsStr, "-e no_proxy=localhost,127.0.0.1") {
 			t.Errorf("Expected no_proxy env var in args: %s", argsStr)
 		}
 
@@ -655,7 +655,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			},
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		args, err := p.buildContainerArgs(params, "kdn-test", "kdn-test-workspace", ccArgs)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -692,7 +692,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			envVars: map[string]string{"HTTP_PROXY": "http://proxy:8080"},
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		args, err := p.buildContainerArgs(params, "kdn-test", "kdn-test-workspace", ccArgs)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -718,7 +718,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			Agent:      "test_agent",
 		}
 
-		args, err := p.buildContainerArgs(params, "kdn-test", nil)
+		args, err := p.buildContainerArgs(params, "kdn-test", "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -754,7 +754,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			},
 		}
 
-		args, err := p.buildContainerArgs(params, imageName, ccArgs)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", ccArgs)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -817,7 +817,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -876,7 +876,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -913,7 +913,7 @@ func TestBuildContainerArgs(t *testing.T) {
 		}
 		imageName := "kdn-test-workspace"
 
-		args, err := p.buildContainerArgs(params, imageName, nil)
+		args, err := p.buildContainerArgs(params, imageName, "kdn-test-workspace", nil)
 		if err != nil {
 			t.Fatalf("buildContainerArgs() failed: %v", err)
 		}
@@ -944,6 +944,12 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 		return nil
 	}
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
+		if len(args) >= 3 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte("infra-container-id\n"), nil
+		}
 		return []byte("container-id-123"), nil
 	}
 
@@ -984,7 +990,9 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 		{inProgress: "Creating temporary build directory", completed: "Temporary build directory created"},
 		{inProgress: "Generating Containerfile", completed: "Containerfile generated"},
 		{inProgress: "Building container image: kdn-test-workspace", completed: "Container image built"},
+		{inProgress: "Creating internal network", completed: "Internal network created"},
 		{inProgress: "Creating onecli services", completed: "Onecli services created"},
+		{inProgress: "Connecting OneCLI to internal network", completed: "OneCLI connected to internal network"},
 		{inProgress: "Starting postgres", completed: "Postgres started"},
 		{inProgress: "Waiting for postgres readiness", completed: "Postgres ready"},
 		{inProgress: "Starting OneCLI", completed: "OneCLI started"},
@@ -1210,6 +1218,12 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 		return nil
 	}
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
+		if len(args) >= 3 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte("infra-container-id\n"), nil
+		}
 		if len(args) > 0 && args[0] == "create" {
 			return nil, fmt.Errorf("create container failed")
 		}
@@ -1248,7 +1262,9 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 		"Creating temporary build directory",
 		"Generating Containerfile",
 		"Building container image: kdn-test-workspace",
+		"Creating internal network",
 		"Creating onecli services",
+		"Connecting OneCLI to internal network",
 		"Starting postgres",
 		"Waiting for postgres readiness",
 		"Starting OneCLI",
@@ -1289,6 +1305,12 @@ func TestCreate_StepLogger_FailOnPrepareFeatures(t *testing.T) {
 		return nil
 	}
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
+		if len(args) >= 3 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte("infra-container-id\n"), nil
+		}
 		return []byte("container-id-123"), nil
 	}
 
@@ -1381,6 +1403,12 @@ func TestCreate_StepLogger_Success_WithFeatures(t *testing.T) {
 		return nil
 	}
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
+		if len(args) >= 3 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte("infra-container-id\n"), nil
+		}
 		return []byte("container-id-123"), nil
 	}
 
@@ -1425,7 +1453,9 @@ func TestCreate_StepLogger_Success_WithFeatures(t *testing.T) {
 		{inProgress: "Downloading devcontainer features", completed: "Devcontainer features downloaded"},
 		{inProgress: "Generating Containerfile", completed: "Containerfile generated"},
 		{inProgress: "Building container image: kdn-test-workspace", completed: "Container image built"},
+		{inProgress: "Creating internal network", completed: "Internal network created"},
 		{inProgress: "Creating onecli services", completed: "Onecli services created"},
+		{inProgress: "Connecting OneCLI to internal network", completed: "OneCLI connected to internal network"},
 		{inProgress: "Starting postgres", completed: "Postgres started"},
 		{inProgress: "Waiting for postgres readiness", completed: "Postgres ready"},
 		{inProgress: "Starting OneCLI", completed: "OneCLI started"},
@@ -1576,6 +1606,12 @@ func (f *fakeExecutor) Run(ctx context.Context, stdout, stderr io.Writer, args .
 func (f *fakeExecutor) Output(ctx context.Context, stderr io.Writer, args ...string) ([]byte, error) {
 	if f.outputErr != nil {
 		return nil, f.outputErr
+	}
+	if len(args) >= 2 && args[0] == "port" {
+		return []byte("127.0.0.1:20254\n"), nil
+	}
+	if len(args) >= 3 && args[0] == "pod" && args[1] == "inspect" {
+		return []byte("infra-container-id\n"), nil
 	}
 	return f.output, nil
 }

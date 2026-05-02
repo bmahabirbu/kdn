@@ -41,7 +41,14 @@ func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
 
 	l := logger.FromContext(ctx)
 
-	// Query container names dynamically so the list stays correct if the pod
+	// Stop the standalone workspace container first (it is not part of the pod).
+	stepLogger.Start(fmt.Sprintf("Stopping workspace container: %s", id), "Workspace container stopped")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "stop", id); err != nil {
+		stepLogger.Fail(err)
+		return fmt.Errorf("failed to stop workspace container %s: %w", id, err)
+	}
+
+	// Query pod container names dynamically so the list stays correct if the pod
 	// definition gains or loses containers in the future.
 	// `podman pod stop` is a NOP when any container is already stopped/exited,
 	// so we stop each container individually instead.

@@ -118,27 +118,12 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		wsCfg.Network.Mode != nil &&
 		*wsCfg.Network.Mode == workspace.Deny
 
-	// Start the network-guard container so we can exec nftables commands into it.
-	networkGuardContainer := podName + "-network-guard"
-	stepLogger.Start("Starting network guard", "Network guard started")
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "start", networkGuardContainer); err != nil {
-		stepLogger.Fail(err)
-		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start network-guard container: %w", err)
+	// Discover the host port podman assigned to OneCLI.
+	onecliPort, portErr := p.discoverOnecliPort(ctx, podName)
+	if portErr != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to discover OneCLI port: %w", portErr)
 	}
-
-	// On WSL2, host.containers.internal does not resolve because the WSL2
-	// provider does not update /etc/hosts like macOS/Hyper-V VMs do. Patch
-	// the network-guard container so resolveHostGateway's getent succeeds.
-	isWSL := p.isPodmanWSL(ctx)
-	if isWSL {
-		if err := p.injectWSLHostEntry(ctx, networkGuardContainer); err != nil {
-			return runtime.RuntimeInfo{}, fmt.Errorf("failed to inject WSL host entry into network-guard: %w", err)
-		}
-	}
-
-	// Always connect to OneCLI so networking state is kept consistent across
-	// mode switches without recreating the workspace.
-	onecliBaseURL := p.onecliURL(tmplData.OnecliWebPort)
+	onecliBaseURL := p.onecliURL(onecliPort)
 
 	stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
 	if err := waitForReady(ctx, onecliBaseURL); err != nil {
@@ -151,13 +136,6 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		if err := p.configureNetworking(ctx, onecliBaseURL, allHosts, tmplData.ApprovalHandlerDir); err != nil {
 			stepLogger.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
-		}
-
-		// Apply nftables firewall rules to block direct outbound from the agent UID.
-		stepLogger.Start("Configuring firewall rules", "Firewall rules configured")
-		if err := p.setupFirewallRules(ctx, podName, tmplData.AgentUID); err != nil {
-			stepLogger.Fail(err)
-			return runtime.RuntimeInfo{}, fmt.Errorf("failed to set up firewall rules: %w", err)
 		}
 
 		// Start the approval-handler now that config.json is in place.
@@ -174,24 +152,24 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 			stepLogger.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to clear networking rules: %w", err)
 		}
-
-		// Clear any leftover nftables firewall rules from a previous deny-mode start.
-		stepLogger.Start("Clearing firewall rules", "Firewall rules cleared")
-		if err := p.clearFirewallRules(ctx, podName); err != nil {
-			stepLogger.Fail(err)
-			return runtime.RuntimeInfo{}, fmt.Errorf("failed to clear firewall rules: %w", err)
-		}
 	}
 
-	// Start the remaining containers (workspace and, in allow mode, approval-handler).
+	// Start the remaining pod containers (approval-handler in allow mode).
 	stepLogger.Start(fmt.Sprintf("Starting pod: %s", podName), "Pod started")
 	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "start", podName); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start pod: %w", err)
 	}
 
-	// Patch the workspace container's /etc/hosts on WSL2 as well.
-	if isWSL {
+	// Start the standalone agent container (not part of the pod).
+	stepLogger.Start("Starting workspace container", "Workspace container started")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "start", id); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start workspace container: %w", err)
+	}
+
+	// Patch the workspace container's /etc/hosts on WSL2.
+	if p.isPodmanWSL(ctx) {
 		if err := p.injectWSLHostEntry(ctx, id); err != nil {
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to inject WSL host entry: %w", err)
 		}

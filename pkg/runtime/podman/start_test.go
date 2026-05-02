@@ -81,6 +81,9 @@ func TestStart_Success(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -103,9 +106,6 @@ func TestStart_Success(t *testing.T) {
 
 	// Verify pg_isready was called to wait for postgres
 	fakeExec.AssertOutputCalledWith(t, "exec", podName+"-postgres", "pg_isready", "-U", "onecli")
-
-	// Verify network-guard was started
-	fakeExec.AssertRunCalledWith(t, "start", podName+"-network-guard")
 
 	// Verify pod start was called for remaining containers
 	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
@@ -165,6 +165,9 @@ func TestStart_PodStartFailure(t *testing.T) {
 	}
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		return []byte("accepting connections\n"), nil
 	}
 
@@ -190,6 +193,9 @@ func TestStart_InspectFailure(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -242,6 +248,9 @@ func TestStart_StepLogger_Success(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -284,10 +293,6 @@ func TestStart_StepLogger_Success(t *testing.T) {
 			completed:  "OneCLI started",
 		},
 		{
-			inProgress: "Starting network guard",
-			completed:  "Network guard started",
-		},
-		{
 			inProgress: "Waiting for OneCLI readiness",
 			completed:  "OneCLI ready",
 		},
@@ -296,12 +301,12 @@ func TestStart_StepLogger_Success(t *testing.T) {
 			completed:  "Network rules cleared",
 		},
 		{
-			inProgress: "Clearing firewall rules",
-			completed:  "Firewall rules cleared",
-		},
-		{
 			inProgress: fmt.Sprintf("Starting pod: %s", podName),
 			completed:  "Pod started",
+		},
+		{
+			inProgress: "Starting workspace container",
+			completed:  "Workspace container started",
 		},
 		{
 			inProgress: "Verifying container status",
@@ -369,6 +374,9 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -392,19 +400,18 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	if len(fakeLogger.startCalls) != 9 {
-		t.Fatalf("Expected 9 Start() calls, got %d", len(fakeLogger.startCalls))
+	if len(fakeLogger.startCalls) != 8 {
+		t.Fatalf("Expected 8 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
 		"Starting postgres",
 		"Waiting for postgres to be ready",
 		"Starting OneCLI",
-		"Starting network guard",
 		"Waiting for OneCLI readiness",
 		"Clearing network rules",
-		"Clearing firewall rules",
 		fmt.Sprintf("Starting pod: %s", podName),
+		"Starting workspace container",
 		"Verifying container status",
 	}
 
@@ -445,11 +452,8 @@ func setupPodFilesWithSource(t *testing.T, p *podmanRuntime, containerID, worksp
 	}
 	data := podTemplateData{
 		Name:               workspaceName,
-		OnecliWebPort:      20254,
 		OnecliVersion:      defaultOnecliVersion,
-		AgentUID:           1000,
-		BaseImageRegistry:  "registry.fedoraproject.org/fedora",
-		BaseImageVersion:   "latest",
+		NetworkName:        fmt.Sprintf("kdn-%s", workspaceName),
 		SourcePath:         sourceDir,
 		ApprovalHandlerDir: approvalDir,
 	}
@@ -466,6 +470,9 @@ func TestStart_AllowMode_ClearsRules(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -513,9 +520,6 @@ func TestStart_AllowMode_ClearsRules(t *testing.T) {
 		t.Errorf("deleted IDs = %v, want [stale-rule-1 stale-rule-2]", deletedIDs)
 	}
 
-	// Network-guard must be started in allow mode (to clear firewall rules).
-	fakeExec.AssertRunCalledWith(t, "start", "test-ws-network-guard")
-
 	// Approval handler must NOT be started individually in allow mode.
 	fakeExec.AssertRunNotCalledWith(t, "start", "test-ws-approval-handler")
 
@@ -530,6 +534,9 @@ func TestStart_AllowMode_StepLogger(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -568,11 +575,10 @@ func TestStart_AllowMode_StepLogger(t *testing.T) {
 		{"Starting postgres", "Postgres started"},
 		{"Waiting for postgres to be ready", "Postgres is ready"},
 		{"Starting OneCLI", "OneCLI started"},
-		{"Starting network guard", "Network guard started"},
 		{"Waiting for OneCLI readiness", "OneCLI ready"},
 		{"Clearing network rules", "Network rules cleared"},
-		{"Clearing firewall rules", "Firewall rules cleared"},
 		{fmt.Sprintf("Starting pod: %s", podName), "Pod started"},
+		{"Starting workspace container", "Workspace container started"},
 		{"Verifying container status", "Container status verified"},
 	}
 
@@ -594,6 +600,9 @@ func TestStart_DenyMode_ConfiguresNetworking(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -673,6 +682,9 @@ func TestStart_DenyMode_NoHosts_ConfiguresNetworking(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -744,6 +756,9 @@ func TestStart_DenyMode_StepLogger(t *testing.T) {
 	fakeExec := exec.NewFake()
 
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		if len(args) > 0 && args[0] == "exec" {
 			return []byte("accepting connections\n"), nil
 		}
@@ -784,12 +799,11 @@ func TestStart_DenyMode_StepLogger(t *testing.T) {
 		{"Starting postgres", "Postgres started"},
 		{"Waiting for postgres to be ready", "Postgres is ready"},
 		{"Starting OneCLI", "OneCLI started"},
-		{"Starting network guard", "Network guard started"},
 		{"Waiting for OneCLI readiness", "OneCLI ready"},
 		{"Configuring network rules", "Network rules configured"},
-		{"Configuring firewall rules", "Firewall rules configured"},
 		{"Starting approval handler", "Approval handler started"},
 		{fmt.Sprintf("Starting pod: %s", podName), "Pod started"},
+		{"Starting workspace container", "Workspace container started"},
 		{"Verifying container status", "Container status verified"},
 	}
 

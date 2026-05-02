@@ -931,3 +931,103 @@ func TestIntegration_WorkspaceWithSecret(t *testing.T) {
 
 	integrationExecCmd(t, "--storage", storageDir, "stop", wsID, "--output", "json")
 }
+
+func TestIntegration_NetworkIsolation(t *testing.T) {
+	skipIfNoPodman(t)
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	sourcesDir := t.TempDir()
+
+	// Write workspace config with deny-mode networking and a whitelist.
+	kaidenDir := filepath.Join(sourcesDir, ".kaiden")
+	if err := os.MkdirAll(kaidenDir, 0755); err != nil {
+		t.Fatalf("failed to create .kaiden dir: %v", err)
+	}
+	wsConfig := `{"network":{"mode":"deny","hosts":["pypi.org","files.pythonhosted.org"]}}`
+	if err := os.WriteFile(filepath.Join(kaidenDir, "workspace.json"), []byte(wsConfig), 0644); err != nil {
+		t.Fatalf("failed to write workspace.json: %v", err)
+	}
+
+	wsName := "network-isolation"
+	_, wsID := integrationInit(t, storageDir, sourcesDir, wsName, "claude")
+	integrationExecCmd(t, "--storage", storageDir, "start", wsID, "--output", "json")
+	t.Cleanup(func() {
+		_ = exec.Command("podman", "start", wsName+"-onecli").Run()
+		cmd := NewRootCmd()
+		cmd.SetOut(new(bytes.Buffer))
+		cmd.SetErr(new(bytes.Buffer))
+		cmd.SilenceErrors = true
+		cmd.SetArgs([]string{"--storage", storageDir, "stop", wsID})
+		_ = cmd.Execute()
+	})
+
+	t.Run("agent has no default route to internet", func(t *testing.T) {
+		out, err := exec.Command("podman", "exec", wsName, "cat", "/proc/net/route").CombinedOutput()
+		if err != nil {
+			t.Fatalf("failed to read route table: %v\n%s", err, out)
+		}
+		for _, line := range strings.Split(string(out), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && fields[1] == "00000000" {
+				t.Errorf("agent has a default route (should not): %s", line)
+			}
+		}
+	})
+
+	t.Run("direct internet access blocked", func(t *testing.T) {
+		out, err := exec.Command("podman", "exec", wsName,
+			"curl", "-s", "--noproxy", "*", "--connect-timeout", "5", "https://google.com").CombinedOutput()
+		if err == nil {
+			t.Errorf("expected direct internet access to fail, but got: %s", out)
+		}
+	})
+
+	t.Run("whitelisted host reachable through proxy", func(t *testing.T) {
+		out, err := exec.Command("podman", "exec", wsName,
+			"curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--connect-timeout", "15", "https://pypi.org").CombinedOutput()
+		if err != nil {
+			t.Fatalf("curl to whitelisted host failed: %v\n%s", err, out)
+		}
+		if strings.TrimSpace(string(out)) != "200" {
+			t.Errorf("expected HTTP 200 for whitelisted pypi.org, got: %s", out)
+		}
+	})
+
+	t.Run("non-whitelisted host denied by OneCLI", func(t *testing.T) {
+		out, err := exec.Command("podman", "exec", wsName,
+			"curl", "-s", "--connect-timeout", "10", "https://github.com").CombinedOutput()
+		if err != nil {
+			t.Fatalf("curl failed unexpectedly: %v\n%s", err, out)
+		}
+		if !strings.Contains(string(out), "manual_approval_denied") {
+			t.Errorf("expected manual_approval_denied for github.com, got: %s", out)
+		}
+	})
+
+	t.Run("IP forwarding disabled in OneCLI", func(t *testing.T) {
+		out, err := exec.Command("podman", "exec", wsName+"-onecli",
+			"cat", "/proc/sys/net/ipv4/ip_forward").CombinedOutput()
+		if err != nil {
+			t.Fatalf("failed to check ip_forward: %v\n%s", err, out)
+		}
+		if strings.TrimSpace(string(out)) != "0" {
+			t.Errorf("expected ip_forward=0, got: %s", out)
+		}
+	})
+
+	t.Run("fail-closed when OneCLI is down", func(t *testing.T) {
+		if out, err := exec.Command("podman", "stop", wsName+"-onecli").CombinedOutput(); err != nil {
+			t.Fatalf("failed to stop onecli: %v\n%s", err, out)
+		}
+		defer func() {
+			_ = exec.Command("podman", "start", wsName+"-onecli").Run()
+		}()
+
+		out, err := exec.Command("podman", "exec", wsName,
+			"curl", "-s", "--connect-timeout", "5", "https://pypi.org").CombinedOutput()
+		if err == nil && strings.Contains(string(out), "200") {
+			t.Errorf("expected egress to fail when OneCLI is down, but request succeeded: %s", out)
+		}
+	})
+}

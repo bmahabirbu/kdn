@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +29,6 @@ import (
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
-	"github.com/openkaiden/kdn/pkg/runtime/podman/constants"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/pods"
 	podmanSystem "github.com/openkaiden/kdn/pkg/runtime/podman/system"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -44,11 +42,8 @@ const defaultOnecliVersion = "1.17"
 // without re-reading the original CreateParams.
 type podTemplateData struct {
 	Name               string
-	OnecliWebPort      int
 	OnecliVersion      string
-	AgentUID           int
-	BaseImageRegistry  string
-	BaseImageVersion   string
+	NetworkName        string
 	SourcePath         string
 	ProjectID          string
 	Agent              string
@@ -219,9 +214,12 @@ type containerConfigArgs struct {
 	caContainerPath string
 }
 
-// buildContainerArgs builds the arguments for creating the workspace container inside the pod.
-func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
-	args := []string{"create", "--pod", params.Name, "--name", params.Name, "--device", "/dev/fuse"}
+// buildContainerArgs builds the arguments for creating the standalone workspace
+// container on the internal network. The container is isolated from the
+// internet — its only egress path is through the OneCLI proxy on the same
+// internal network.
+func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName, networkName string, ccArgs *containerConfigArgs) ([]string, error) {
+	args := []string{"create", "--network", networkName, "--name", params.Name, "--device", "/dev/fuse"}
 
 	// Collect workspace env var names for collision detection
 	workspaceEnvNames := make(map[string]bool)
@@ -239,22 +237,28 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 	}
 
 	// Add OneCLI proxy env vars after workspace config (OneCLI takes precedence).
-	// Log collisions so users know their workspace values are being overridden.
+	// Rewrite proxy URLs: OneCLI returns localhost-based URLs which only work
+	// inside the pod. The standalone agent container reaches OneCLI via the
+	// gateway alias on the internal network.
 	if ccArgs != nil {
+		gatewayAlias := params.Name + "-gateway"
 		onecliEnvNames := make(map[string]bool)
 		for k, v := range ccArgs.envVars {
 			if workspaceEnvNames[k] {
 				fmt.Fprintf(os.Stderr, "warning: OneCLI overrides workspace env var %q\n", k)
 			}
+			v = strings.ReplaceAll(v, "localhost:10255", gatewayAlias+":10255")
+			v = strings.ReplaceAll(v, "127.0.0.1:10255", gatewayAlias+":10255")
 			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 			onecliEnvNames[k] = true
 		}
-		// Ensure local addresses bypass the OneCLI proxy so tools can reach
-		// localhost and host.containers.internal (e.g. Ollama) directly.
-		// Only inject if neither the workspace config nor OneCLI already set NO_PROXY.
+		// Ensure localhost bypasses the OneCLI proxy.
+		// host.containers.internal is NOT excluded — all external traffic
+		// (including host-local services) flows through OneCLI for consistent
+		// enforcement.
 		if !workspaceEnvNames["NO_PROXY"] && !workspaceEnvNames["no_proxy"] &&
 			!onecliEnvNames["NO_PROXY"] && !onecliEnvNames["no_proxy"] {
-			const noProxy = "localhost,127.0.0.1,host.containers.internal"
+			const noProxy = "localhost,127.0.0.1"
 			args = append(args, "-e", "NO_PROXY="+noProxy, "-e", "no_proxy="+noProxy)
 		}
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
@@ -305,21 +309,46 @@ func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (str
 	return strings.TrimSpace(string(output)), nil
 }
 
-// findFreePorts returns n free TCP ports on 127.0.0.1.
-// Each port is obtained by binding to :0 and immediately closing the listener.
-func findFreePorts(n int) ([]int, error) {
-	ports := make([]int, 0, n)
-	for range n {
-		l, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return nil, fmt.Errorf("failed to find free port: %w", err)
-		}
-		port := l.Addr().(*net.TCPAddr).Port
-		l.Close()
-		ports = append(ports, port)
+// discoverOnecliPort discovers the host port mapped to OneCLI's container port
+// 10254 by querying `podman port`. This eliminates the port race condition that
+// occurs when pre-allocating a port with findFreePorts — podman assigns the
+// port atomically when the container starts.
+func (p *podmanRuntime) discoverOnecliPort(ctx context.Context, podName string) (int, error) {
+	out, err := p.executor.Output(ctx, nil,
+		"port", podName+"-onecli", "10254")
+	if err != nil {
+		return 0, fmt.Errorf("failed to discover OneCLI port: %w", err)
 	}
-	return ports, nil
+	// Output format: "127.0.0.1:12345\n" — extract the port number after the last colon.
+	trimmed := strings.TrimSpace(string(out))
+	parts := strings.Split(trimmed, ":")
+	if len(parts) < 2 {
+		return 0, fmt.Errorf("unexpected port output: %q", trimmed)
+	}
+	var port int
+	if _, err := fmt.Sscanf(parts[len(parts)-1], "%d", &port); err != nil {
+		return 0, fmt.Errorf("failed to parse port from %q: %w", trimmed, err)
+	}
+	return port, nil
 }
+
+// findPodInfraContainer discovers the infra container name for a pod.
+// The infra container owns the pod's network namespace and must be used
+// for `podman network connect` since named containers in a pod share
+// the infra container's network and cannot be connected individually.
+func (p *podmanRuntime) findPodInfraContainer(ctx context.Context, podName string) (string, error) {
+	out, err := p.executor.Output(ctx, nil,
+		"pod", "inspect", "--format", "{{.InfraContainerID}}", podName)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect pod %s for infra container: %w", podName, err)
+	}
+	infraID := strings.TrimSpace(string(out))
+	if infraID == "" {
+		return "", fmt.Errorf("pod %s has no infra container", podName)
+	}
+	return infraID, nil
+}
+
 
 // renderPodYAML renders the embedded pod YAML template with the given data.
 func renderPodYAML(data podTemplateData) ([]byte, error) {
@@ -394,12 +423,6 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Allocate random free ports for the pod
-	freePorts, err := findFreePorts(1)
-	if err != nil {
-		return runtime.RuntimeInfo{}, fmt.Errorf("failed to allocate free ports: %w", err)
-	}
-
 	// Prepare the approval-handler directory with the embedded Node.js script
 	// so it is available as a hostPath volume when the pod is created.
 	approvalHandlerDir := filepath.Join(p.storageDir, "approval-handler", params.Name)
@@ -407,14 +430,30 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to write approval handler files: %w", err)
 	}
 
+	l := logger.FromContext(ctx)
+
+	// Create an internal podman network for the workspace. The agent container
+	// is placed on this network with no internet gateway. OneCLI is connected
+	// to both this network and the default network, acting as the sole egress
+	// path. This enforces network-level isolation without UID-based nftables.
+	networkName := fmt.Sprintf("kdn-%s", params.Name)
+	stepLogger.Start("Creating internal network", "Internal network created")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "network", "create", "--internal", networkName); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create internal network: %w", err)
+	}
+	networkCreatedOK := false
+	defer func() {
+		if !networkCreatedOK {
+			_ = p.executor.Run(context.Background(), l.Stdout(), l.Stderr(), "network", "rm", "-f", networkName)
+		}
+	}()
+
 	// Render the pod YAML template
 	tmplData := podTemplateData{
 		Name:               params.Name,
-		OnecliWebPort:      freePorts[0],
 		OnecliVersion:      defaultOnecliVersion,
-		AgentUID:           p.system.Getuid(),
-		BaseImageRegistry:  constants.BaseImageRegistry,
-		BaseImageVersion:   imageConfig.Version,
+		NetworkName:        networkName,
 		SourcePath:         params.SourcePath,
 		ProjectID:          params.ProjectID,
 		Agent:              params.Agent,
@@ -430,10 +469,12 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Create the pod with onecli services via kube play (--start=false keeps all containers stopped)
+	// Create the pod on the default network. Port 10254 is published on a
+	// random host port via --publish to avoid the race condition where a
+	// pre-allocated port gets taken before kube play binds it. The actual
+	// port is discovered after starting OneCLI via `podman port`.
 	stepLogger.Start("Creating onecli services", "Onecli services created")
-	l := logger.FromContext(ctx)
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "kube", "play", "--userns=keep-id", "--start=false", tmpYAMLPath); err != nil {
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "kube", "play", "--userns=keep-id", "--start=false", "--publish", "127.0.0.1::10254", tmpYAMLPath); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to create pod via kube play: %w", err)
 	}
@@ -446,6 +487,22 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 			_ = p.executor.Run(context.Background(), l.Stdout(), l.Stderr(), "pod", "rm", "-f", params.Name)
 		}
 	}()
+
+	// Connect the pod's infra container to the internal network. The infra
+	// container owns the pod's network namespace, so this makes the internal
+	// network reachable by all containers in the pod. The agent container
+	// (on the internal network only) can then reach the OneCLI gateway.
+	stepLogger.Start("Connecting OneCLI to internal network", "OneCLI connected to internal network")
+	infraName, err := p.findPodInfraContainer(ctx, params.Name)
+	if err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, err
+	}
+	onecliAlias := params.Name + "-gateway"
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "network", "connect", "--alias", onecliAlias, networkName, infraName); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to connect pod to internal network: %w", err)
+	}
 
 	// Always start OneCLI to inject proxy env vars and the CA cert into the workspace container.
 	// Without HTTP_PROXY/HTTPS_PROXY pointing at the OneCLI gateway, deny-mode networking rules
@@ -476,9 +533,10 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		}
 	}
 
-	// Build workspace container args with proxy env vars and CA cert mount from OneCLI
+	// Build workspace container args with proxy env vars and CA cert mount from OneCLI.
+	// The workspace container is standalone (not in the pod) on the internal network.
 	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", params.Name), "Workspace container created")
-	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs)
+	createArgs, err := p.buildContainerArgs(params, imageName, networkName, ccArgs)
 	if err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
@@ -501,14 +559,14 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 
 	podCreatedOK = true
+	networkCreatedOK = true
 
 	// Return RuntimeInfo
 	info := map[string]string{
-		"container_id":    containerID,
-		"image_name":      imageName,
-		"source_path":     params.SourcePath,
-		"agent":           params.Agent,
-		"onecli_web_port": fmt.Sprintf("%d", tmplData.OnecliWebPort),
+		"container_id": containerID,
+		"image_name":   imageName,
+		"source_path":  params.SourcePath,
+		"agent":        params.Agent,
 	}
 	if ccArgs != nil && ccArgs.caContainerPath != "" {
 		info["ca_container_path"] = ccArgs.caContainerPath
@@ -548,7 +606,14 @@ func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.S
 		return nil, fmt.Errorf("failed to start OneCLI: %w", err)
 	}
 
-	baseURL := p.onecliURL(tmplData.OnecliWebPort)
+	// Discover the host port that podman assigned to OneCLI's container port.
+	// Using hostPort: 0 in the pod YAML lets podman assign atomically, avoiding
+	// the race condition where a pre-allocated port gets taken before kube play.
+	port, portErr := p.discoverOnecliPort(ctx, podName)
+	if portErr != nil {
+		return nil, fmt.Errorf("failed to discover OneCLI port: %w", portErr)
+	}
+	baseURL := p.onecliURL(port)
 
 	stepLogger.Start("Waiting for OneCLI readiness", "OneCLI ready")
 	if err := waitForReady(ctx, baseURL); err != nil {

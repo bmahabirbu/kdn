@@ -190,11 +190,8 @@ func TestWritePodFiles(t *testing.T) {
 
 		data := podTemplateData{
 			Name:              "my-project",
-			OnecliWebPort:     30001,
 			OnecliVersion:     "1.17",
-			AgentUID:          1000,
-			BaseImageRegistry: "registry.fedoraproject.org/fedora",
-			BaseImageVersion:  "latest",
+			NetworkName:       "kdn-test",
 		}
 
 		err := p.writePodFiles(containerID, data)
@@ -217,8 +214,8 @@ func TestWritePodFiles(t *testing.T) {
 			t.Error("Container name within pod should remain 'onecli'")
 		}
 
-		if !strings.Contains(yamlStr, "hostPort: 30001") {
-			t.Error("Pod YAML should contain onecli web hostPort 30001")
+		if !strings.Contains(yamlStr, "containerPort: 10254") {
+			t.Error("Pod YAML should contain containerPort for OneCLI API")
 		}
 		if !strings.Contains(yamlStr, "ghcr.io/onecli/onecli:1.17") {
 			t.Error("Pod YAML should contain versioned onecli image")
@@ -233,11 +230,8 @@ func TestWritePodFiles(t *testing.T) {
 
 		data := podTemplateData{
 			Name:              "test-ws",
-			OnecliWebPort:     40001,
 			OnecliVersion:     "1.17",
-			AgentUID:          1000,
-			BaseImageRegistry: "registry.fedoraproject.org/fedora",
-			BaseImageVersion:  "latest",
+			NetworkName:       "kdn-test",
 		}
 
 		err := p.writePodFiles(containerID, data)
@@ -275,11 +269,8 @@ func TestCleanupPodFiles(t *testing.T) {
 
 	data := podTemplateData{
 		Name:              "my-ws",
-		OnecliWebPort:     50001,
 		OnecliVersion:     "1.17",
-		AgentUID:          1000,
-		BaseImageRegistry: "registry.fedoraproject.org/fedora",
-		BaseImageVersion:  "latest",
+		NetworkName:       "kdn-test",
 	}
 
 	if err := p.writePodFiles(containerID, data); err != nil {
@@ -305,11 +296,8 @@ func TestRenderPodYAML(t *testing.T) {
 
 		data := podTemplateData{
 			Name:               "my-project",
-			OnecliWebPort:      32101,
 			OnecliVersion:      "1.17",
-			AgentUID:           1000,
-			BaseImageRegistry:  "registry.fedoraproject.org/fedora",
-			BaseImageVersion:   "latest",
+			NetworkName:        "kdn-test",
 			ApprovalHandlerDir: "/tmp/approval-handler/my-project",
 		}
 
@@ -323,8 +311,8 @@ func TestRenderPodYAML(t *testing.T) {
 		if !strings.Contains(yamlStr, "  name: my-project\n") {
 			t.Error("Expected rendered YAML to contain pod name 'my-project'")
 		}
-		if !strings.Contains(yamlStr, "hostPort: 32101") {
-			t.Error("Expected rendered YAML to contain onecli web hostPort 32101")
+		if !strings.Contains(yamlStr, "containerPort: 10254") {
+			t.Error("Expected rendered YAML to contain containerPort for OneCLI API")
 		}
 		if !strings.Contains(yamlStr, "ghcr.io/onecli/onecli:1.17") {
 			t.Error("Expected rendered YAML to contain versioned onecli image")
@@ -338,14 +326,8 @@ func TestRenderPodYAML(t *testing.T) {
 		if !strings.Contains(yamlStr, "volumeMounts") {
 			t.Error("Expected rendered YAML to contain volumeMounts for approval-handler")
 		}
-		if !strings.Contains(yamlStr, "network-guard") {
-			t.Error("Expected rendered YAML to contain network-guard container")
-		}
-		if !strings.Contains(yamlStr, "NET_ADMIN") {
-			t.Error("Expected rendered YAML to contain NET_ADMIN capability for network-guard")
-		}
-		if !strings.Contains(yamlStr, "registry.fedoraproject.org/fedora:latest") {
-			t.Error("Expected rendered YAML to contain base image for network-guard")
+		if strings.Contains(yamlStr, "network-guard") {
+			t.Error("Expected rendered YAML to NOT contain network-guard container (removed in split architecture)")
 		}
 
 		// Postgres (5432) and proxy (10255) ports should NOT have hostPort mappings
@@ -362,11 +344,8 @@ func TestRenderPodYAML(t *testing.T) {
 
 		data := podTemplateData{
 			Name:               "test",
-			OnecliWebPort:      10001,
 			OnecliVersion:      "2.0",
-			AgentUID:           1000,
-			BaseImageRegistry:  "registry.fedoraproject.org/fedora",
-			BaseImageVersion:   "42",
+			NetworkName:        "kdn-test",
 			ApprovalHandlerDir: "/tmp/approval-handler/test",
 		}
 
@@ -379,59 +358,6 @@ func TestRenderPodYAML(t *testing.T) {
 
 		if strings.Contains(yamlStr, "{{") || strings.Contains(yamlStr, "}}") {
 			t.Error("Expected rendered YAML to not contain any template placeholders")
-		}
-	})
-}
-
-func TestFindFreePorts(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns requested number of ports", func(t *testing.T) {
-		t.Parallel()
-
-		ports, err := findFreePorts(3)
-		if err != nil {
-			t.Fatalf("findFreePorts() failed: %v", err)
-		}
-
-		if len(ports) != 3 {
-			t.Fatalf("Expected 3 ports, got %d", len(ports))
-		}
-
-		for i, port := range ports {
-			if port <= 0 || port > 65535 {
-				t.Errorf("Port %d has invalid value: %d", i, port)
-			}
-		}
-	})
-
-	t.Run("returns unique ports", func(t *testing.T) {
-		t.Parallel()
-
-		ports, err := findFreePorts(3)
-		if err != nil {
-			t.Fatalf("findFreePorts() failed: %v", err)
-		}
-
-		seen := make(map[int]bool)
-		for _, port := range ports {
-			if seen[port] {
-				t.Errorf("Duplicate port found: %d", port)
-			}
-			seen[port] = true
-		}
-	})
-
-	t.Run("returns zero ports for zero count", func(t *testing.T) {
-		t.Parallel()
-
-		ports, err := findFreePorts(0)
-		if err != nil {
-			t.Fatalf("findFreePorts() failed: %v", err)
-		}
-
-		if len(ports) != 0 {
-			t.Errorf("Expected 0 ports, got %d", len(ports))
 		}
 	})
 }

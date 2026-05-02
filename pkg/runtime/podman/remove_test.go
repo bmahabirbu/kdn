@@ -206,7 +206,10 @@ func TestRemove_PodRemoveFailure(t *testing.T) {
 	}
 
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("pod rm failed")
+		if len(args) >= 3 && args[0] == "pod" && args[1] == "rm" {
+			return fmt.Errorf("pod rm failed")
+		}
+		return nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
@@ -217,6 +220,7 @@ func TestRemove_PodRemoveFailure(t *testing.T) {
 		t.Fatal("Expected error when pod rm fails, got nil")
 	}
 
+	fakeExec.AssertRunCalledWith(t, "rm", "-f", containerID)
 	fakeExec.AssertRunCalledWith(t, "pod", "rm", "-f", podName)
 }
 
@@ -327,8 +331,16 @@ func TestRemove_StepLogger_Success(t *testing.T) {
 			completed:  "Container state checked",
 		},
 		{
+			inProgress: fmt.Sprintf("Removing workspace container: %s", containerID),
+			completed:  "Workspace container removed",
+		},
+		{
 			inProgress: fmt.Sprintf("Removing pod: %s", podName),
 			completed:  "Pod removed",
+		},
+		{
+			inProgress: "Removing internal network",
+			completed:  "Internal network removed",
 		},
 	}
 
@@ -471,7 +483,10 @@ func TestRemove_StepLogger_FailOnPodRemove(t *testing.T) {
 	}
 
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		return fmt.Errorf("failed to remove pod")
+		if len(args) >= 3 && args[0] == "pod" && args[1] == "rm" {
+			return fmt.Errorf("failed to remove pod")
+		}
+		return nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
@@ -491,6 +506,7 @@ func TestRemove_StepLogger_FailOnPodRemove(t *testing.T) {
 
 	expectedSteps := []string{
 		"Checking container state",
+		fmt.Sprintf("Removing workspace container: %s", containerID),
 		fmt.Sprintf("Removing pod: %s", podName),
 	}
 

@@ -29,6 +29,9 @@ func TestGetURL_Success(t *testing.T) {
 	containerID := "abc123def456"
 	fakeExec := exec.NewFake()
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:20254\n"), nil
+		}
 		return []byte(fmt.Sprintf("%s|running|kdn-test\n", containerID)), nil
 	}
 
@@ -40,8 +43,7 @@ func TestGetURL_Success(t *testing.T) {
 		t.Fatalf("GetURL() failed: %v", err)
 	}
 
-	const expectedPort = 20254
-	expected := fmt.Sprintf("http://localhost:%d", expectedPort)
+	expected := "http://localhost:20254"
 	if url != expected {
 		t.Errorf("GetURL() = %q, want %q", url, expected)
 	}
@@ -53,30 +55,21 @@ func TestGetURL_ReturnsCorrectPort(t *testing.T) {
 	containerID := "porttest123"
 	fakeExec := exec.NewFake()
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "port" {
+			return []byte("127.0.0.1:31337\n"), nil
+		}
 		return []byte(fmt.Sprintf("%s|running|kdn-test\n", containerID)), nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
-	if p.storageDir == "" {
-		p.storageDir = t.TempDir()
-	}
-
-	const customPort = 31337
-	data := podTemplateData{
-		Name:          "port-test",
-		OnecliWebPort: customPort,
-		OnecliVersion: defaultOnecliVersion,
-	}
-	if err := p.writePodFiles(containerID, data); err != nil {
-		t.Fatalf("writePodFiles() failed: %v", err)
-	}
+	setupPodFiles(t, p, containerID, "port-test")
 
 	url, err := p.GetURL(context.Background(), containerID)
 	if err != nil {
 		t.Fatalf("GetURL() failed: %v", err)
 	}
 
-	expected := fmt.Sprintf("http://localhost:%d", customPort)
+	expected := "http://localhost:31337"
 	if url != expected {
 		t.Errorf("GetURL() = %q, want %q", url, expected)
 	}
@@ -138,7 +131,7 @@ func TestGetURL_NotRunning(t *testing.T) {
 	}
 }
 
-func TestGetURL_PodTemplateDataMissing(t *testing.T) {
+func TestGetURL_PodNameMissing(t *testing.T) {
 	t.Parallel()
 
 	containerID := "abc123"
@@ -147,16 +140,15 @@ func TestGetURL_PodTemplateDataMissing(t *testing.T) {
 		return []byte(fmt.Sprintf("%s|running|kdn-test\n", containerID)), nil
 	}
 
-	// storageDir set but no pod template data written
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 	p.storageDir = t.TempDir()
 
 	_, err := p.GetURL(context.Background(), containerID)
 	if err == nil {
-		t.Fatal("Expected error when pod template data is missing, got nil")
+		t.Fatal("Expected error when pod name is missing, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "failed to read pod template data") {
-		t.Errorf("Expected 'failed to read pod template data' error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to resolve pod name") {
+		t.Errorf("Expected 'failed to resolve pod name' error, got: %v", err)
 	}
 }

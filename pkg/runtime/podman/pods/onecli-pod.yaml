@@ -49,8 +49,6 @@ spec:
           value: "localhost:10255"
       ports:
         - containerPort: 10254
-          hostPort: {{.OnecliWebPort}}
-          hostIP: "127.0.0.1"
 
     - name: approval-handler
       image: registry.access.redhat.com/ubi9/nodejs-22-minimal
@@ -58,10 +56,3 @@ spec:
       volumeMounts:
         - name: approval-handler
           mountPath: /app:Z
-
-    - name: network-guard
-      image: {{.BaseImageRegistry}}:{{.BaseImageVersion}}
-      securityContext:
-        capabilities:
-          add: ["NET_ADMIN"]
-      command: ["sleep", "infinity"]

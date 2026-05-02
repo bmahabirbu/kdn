@@ -103,8 +103,10 @@ func TestStop_PodInspectFailure(t *testing.T) {
 
 	fakeExec.AssertOutputCalledWith(t, "pod", "inspect", "--format", "{{range .Containers}}{{.Name}}\n{{end}}", podName)
 
-	if len(fakeExec.RunCalls) != 0 {
-		t.Errorf("Expected no Run calls when inspect fails, got: %v", fakeExec.RunCalls)
+	// The workspace container stop is attempted before pod inspect, so there
+	// should be exactly one Run call (stop workspace container).
+	if len(fakeExec.RunCalls) != 1 {
+		t.Errorf("Expected 1 Run call (workspace stop) when inspect fails, got: %v", fakeExec.RunCalls)
 	}
 }
 
@@ -162,6 +164,10 @@ func TestStop_StepLogger_Success(t *testing.T) {
 
 	expectedSteps := []stepCall{
 		{
+			inProgress: fmt.Sprintf("Stopping workspace container: %s", containerID),
+			completed:  "Workspace container stopped",
+		},
+		{
 			inProgress: fmt.Sprintf("Stopping pod: %s", podName),
 			completed:  "Pod stopped",
 		},
@@ -215,8 +221,8 @@ func TestStop_StepLogger_FailOnContainerStop(t *testing.T) {
 		t.Fatalf("Expected 1 Start() call, got %d", len(fakeLogger.startCalls))
 	}
 
-	if fakeLogger.startCalls[0].inProgress != fmt.Sprintf("Stopping pod: %s", podName) {
-		t.Errorf("Expected step to be 'Stopping pod: %s', got %q", podName, fakeLogger.startCalls[0].inProgress)
+	if fakeLogger.startCalls[0].inProgress != fmt.Sprintf("Stopping workspace container: %s", containerID) {
+		t.Errorf("Expected step to be 'Stopping workspace container: %s', got %q", containerID, fakeLogger.startCalls[0].inProgress)
 	}
 
 	if len(fakeLogger.failCalls) != 1 {

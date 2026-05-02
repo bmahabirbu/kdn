@@ -64,12 +64,27 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to resolve pod name: %w", err)
 	}
 
-	// Remove the entire pod and all its containers
-	stepLogger.Start(fmt.Sprintf("Removing pod: %s", podName), "Pod removed")
 	l := logger.FromContext(ctx)
+
+	// Remove the standalone workspace container (not part of the pod).
+	stepLogger.Start(fmt.Sprintf("Removing workspace container: %s", id), "Workspace container removed")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "rm", "-f", id); err != nil {
+		stepLogger.Fail(err)
+		return fmt.Errorf("failed to remove workspace container: %w", err)
+	}
+
+	// Remove the OneCLI services pod and all its containers.
+	stepLogger.Start(fmt.Sprintf("Removing pod: %s", podName), "Pod removed")
 	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "rm", "-f", podName); err != nil {
 		stepLogger.Fail(err)
 		return fmt.Errorf("failed to remove pod: %w", err)
+	}
+
+	// Remove the internal network.
+	tmplData, tmplErr := p.readPodTemplateData(id)
+	if tmplErr == nil && tmplData.NetworkName != "" {
+		stepLogger.Start("Removing internal network", "Internal network removed")
+		_ = p.executor.Run(ctx, l.Stdout(), l.Stderr(), "network", "rm", "-f", tmplData.NetworkName)
 	}
 
 	p.cleanupPodFiles(id)

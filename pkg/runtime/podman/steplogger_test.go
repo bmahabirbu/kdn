@@ -15,6 +15,7 @@
 package podman
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,11 +101,8 @@ func setupPodFiles(t *testing.T, p *podmanRuntime, containerID, workspaceName st
 	}
 	data := podTemplateData{
 		Name:               workspaceName,
-		OnecliWebPort:      20254,
 		OnecliVersion:      defaultOnecliVersion,
-		AgentUID:           1000,
-		BaseImageRegistry:  "registry.fedoraproject.org/fedora",
-		BaseImageVersion:   "latest",
+		NetworkName:        fmt.Sprintf("kdn-%s", workspaceName),
 		ApprovalHandlerDir: approvalDir,
 	}
 	if err := p.writePodFiles(containerID, data); err != nil {

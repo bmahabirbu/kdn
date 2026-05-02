@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -219,7 +220,7 @@ type containerConfigArgs struct {
 // internet — its only egress path is through the OneCLI proxy on the same
 // internal network.
 func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName, networkName string, ccArgs *containerConfigArgs) ([]string, error) {
-	args := []string{"create", "--network", networkName, "--name", params.Name, "--device", "/dev/fuse"}
+	args := []string{"create", "--network", networkName, "--name", params.Name, "--device", "/dev/fuse", "--cap-add", "NET_ADMIN"}
 
 	// Collect workspace env var names for collision detection
 	workspaceEnvNames := make(map[string]bool)
@@ -314,7 +315,7 @@ func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (str
 // occurs when pre-allocating a port with findFreePorts — podman assigns the
 // port atomically when the container starts.
 func (p *podmanRuntime) discoverOnecliPort(ctx context.Context, podName string) (int, error) {
-	out, err := p.executor.Output(ctx, nil,
+	out, err := p.executor.Output(ctx, io.Discard,
 		"port", podName+"-onecli", "10254")
 	if err != nil {
 		return 0, fmt.Errorf("failed to discover OneCLI port: %w", err)
@@ -337,7 +338,7 @@ func (p *podmanRuntime) discoverOnecliPort(ctx context.Context, podName string) 
 // for `podman network connect` since named containers in a pod share
 // the infra container's network and cannot be connected individually.
 func (p *podmanRuntime) findPodInfraContainer(ctx context.Context, podName string) (string, error) {
-	out, err := p.executor.Output(ctx, nil,
+	out, err := p.executor.Output(ctx, io.Discard,
 		"pod", "inspect", "--format", "{{.InfraContainerID}}", podName)
 	if err != nil {
 		return "", fmt.Errorf("failed to inspect pod %s for infra container: %w", podName, err)

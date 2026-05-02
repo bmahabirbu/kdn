@@ -168,6 +168,20 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start workspace container: %w", err)
 	}
 
+	// Apply L3/L4 firewall rules inside the agent container to restrict
+	// outbound to only the OneCLI gateway proxy port (10255). This prevents
+	// the agent from accessing OneCLI's API, postgres, or any other service.
+	stepLogger.Start("Configuring agent firewall", "Agent firewall configured")
+	gatewayIP, gwErr := p.resolveGatewayIP(ctx, podName, tmplData.NetworkName)
+	if gwErr != nil {
+		stepLogger.Fail(gwErr)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to resolve gateway IP: %w", gwErr)
+	}
+	if err := p.setupAgentFirewall(ctx, id, gatewayIP); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure agent firewall: %w", err)
+	}
+
 	// Patch the workspace container's /etc/hosts on WSL2.
 	if p.isPodmanWSL(ctx) {
 		if err := p.injectWSLHostEntry(ctx, id); err != nil {

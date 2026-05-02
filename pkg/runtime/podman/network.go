@@ -230,6 +230,64 @@ func (p *podmanRuntime) configureNetworking(ctx context.Context, onecliBaseURL s
 }
 
 
+// setupAgentFirewall applies nftables rules inside the agent container to
+// restrict outbound connections to only the OneCLI gateway proxy port.
+// This prevents the agent from accessing OneCLI's API (10254), postgres
+// (5432), or any other service on the internal network.
+//
+// Rules:
+//   - ALLOW loopback (localhost)
+//   - ALLOW OneCLI gateway IP on port 10255 (proxy)
+//   - DENY everything else
+func (p *podmanRuntime) setupAgentFirewall(ctx context.Context, containerID, gatewayIP string) error {
+	script := buildAgentFirewallScript(gatewayIP)
+	if err := p.executor.Run(ctx, io.Discard, io.Discard,
+		"exec", "--user", "root", containerID, "sh", "-c", script,
+	); err != nil {
+		return fmt.Errorf("failed to set up agent firewall rules: %w", err)
+	}
+	return nil
+}
+
+// resolveGatewayIP discovers the OneCLI pod's IP address on the internal
+// network by inspecting the infra container.
+func (p *podmanRuntime) resolveGatewayIP(ctx context.Context, podName, networkName string) (string, error) {
+	infraID, err := p.findPodInfraContainer(ctx, podName)
+	if err != nil {
+		return "", err
+	}
+	format := fmt.Sprintf(`{{(index .NetworkSettings.Networks "%s").IPAddress}}`, networkName)
+	out, err := p.executor.Output(ctx, io.Discard, "inspect", infraID, "--format", format)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect infra container network: %w", err)
+	}
+	ip := strings.TrimSpace(string(out))
+	if ip == "" {
+		return "", fmt.Errorf("infra container has no IP on network %s", networkName)
+	}
+	return ip, nil
+}
+
+// buildAgentFirewallScript generates nftables commands that restrict the agent
+// container's outbound to only the OneCLI gateway proxy port (10255).
+func buildAgentFirewallScript(gatewayIP string) string {
+	// Derive the DNS server IP from the gateway IP — podman's internal DNS
+	// runs on the .1 address of the subnet (e.g., 10.89.1.1 for 10.89.1.x).
+	dnsIP := gatewayIP[:strings.LastIndex(gatewayIP, ".")] + ".1"
+
+	parts := []string{
+		"command -v nft >/dev/null 2>&1 || dnf install -y nftables >/dev/null 2>&1",
+		"nft delete table inet agent-firewall 2>/dev/null || true",
+		"nft add table inet agent-firewall",
+		"nft add chain inet agent-firewall output '{ type filter hook output priority 0; policy drop; }'",
+		"nft add rule inet agent-firewall output oif lo accept",
+		"nft add rule inet agent-firewall output ct state established,related accept",
+		fmt.Sprintf("nft add rule inet agent-firewall output ip daddr %s udp dport 53 accept", dnsIP),
+		fmt.Sprintf("nft add rule inet agent-firewall output ip daddr %s tcp dport 10255 accept", gatewayIP),
+	}
+	return strings.Join(parts, " && ")
+}
+
 // isPodmanWSL reports whether the podman machine uses the WSL2 provider.
 func (p *podmanRuntime) isPodmanWSL(ctx context.Context) bool {
 	out, err := p.executor.Output(ctx, io.Discard,

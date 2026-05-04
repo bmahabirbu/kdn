@@ -628,6 +628,11 @@ func TestBuildContainerArgs(t *testing.T) {
 			t.Errorf("Expected no_proxy env var in args: %s", argsStr)
 		}
 
+		// Verify OPENCLAW_PROXY_ACTIVE is set for managed proxy support
+		if !strings.Contains(argsStr, "-e OPENCLAW_PROXY_ACTIVE=1") {
+			t.Errorf("Expected OPENCLAW_PROXY_ACTIVE=1 env var in args: %s", argsStr)
+		}
+
 		// Verify CA cert volume mount
 		expectedMount := fmt.Sprintf("-v %s:/etc/ssl/certs/onecli-ca.pem:ro,Z", caFile)
 		if !strings.Contains(argsStr, expectedMount) {

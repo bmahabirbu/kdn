@@ -200,6 +200,7 @@ func (c *config) GenerateDefaults() error {
 	configs := map[string]interface{}{
 		ImageConfigFileName:    defaultImageConfig(),
 		ClaudeConfigFileName:   defaultClaudeConfig(),
+		ClawConfigFileName:     defaultClawConfig(),
 		GooseConfigFileName:    defaultGooseConfig(),
 		CursorConfigFileName:   defaultCursorConfig(),
 		OpenCodeConfigFileName: defaultOpenCodeConfig(),

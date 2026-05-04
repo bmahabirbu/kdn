@@ -501,7 +501,7 @@ func TestPodmanRuntime_ListAgents(t *testing.T) {
 			t.Fatalf("ListAgents() failed: %v", err)
 		}
 
-		expected := []string{"claude", "cursor", "goose", "opencode"}
+		expected := []string{"claude", "claw", "cursor", "goose", "opencode"}
 		if !slices.Equal(agents, expected) {
 			t.Errorf("Expected %v, got: %v", expected, agents)
 		}

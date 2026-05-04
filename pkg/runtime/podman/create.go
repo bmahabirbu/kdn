@@ -257,6 +257,11 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 			const noProxy = "localhost,127.0.0.1,host.containers.internal"
 			args = append(args, "-e", "NO_PROXY="+noProxy, "-e", "no_proxy="+noProxy)
 		}
+		// Signal to OpenClaw that a managed proxy is active so its fetch guard
+		// routes LLM requests through the env proxy instead of connecting directly.
+		if !workspaceEnvNames["OPENCLAW_PROXY_ACTIVE"] && !onecliEnvNames["OPENCLAW_PROXY_ACTIVE"] {
+			args = append(args, "-e", "OPENCLAW_PROXY_ACTIVE=1")
+		}
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
 		}

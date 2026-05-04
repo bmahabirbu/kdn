@@ -647,3 +647,26 @@ func TestClaw_SetMCPServers_InvalidJSON(t *testing.T) {
 		t.Error("Expected error for invalid JSON, got nil")
 	}
 }
+
+func TestClaw_ConfigureTelegram(t *testing.T) {
+	t.Parallel()
+
+	claw := NewClaw()
+	tc, ok := claw.(TelegramConfigurer)
+	if !ok {
+		t.Fatal("claw agent must implement TelegramConfigurer")
+	}
+
+	settings, err := tc.ConfigureTelegram(nil)
+	if err != nil {
+		t.Fatalf("ConfigureTelegram() error: %v", err)
+	}
+
+	script, exists := settings[ClawTelegramScriptPath]
+	if !exists {
+		t.Fatal("Expected telegram-start.sh in settings")
+	}
+	if len(script) == 0 {
+		t.Fatal("Script content is empty")
+	}
+}

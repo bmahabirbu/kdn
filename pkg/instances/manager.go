@@ -65,6 +65,9 @@ type AddOptions struct {
 	Agent string
 	// Model is an optional model ID to configure for the agent
 	Model string
+	// Telegram enables headless Telegram mode. When true, the manager reads
+	// the bot token from a kdn secret named "telegram-bot-token".
+	Telegram bool
 	// RuntimeOptions contains runtime-specific flag values from the CLI.
 	RuntimeOptions map[string]string
 }
@@ -310,6 +313,35 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 					return nil, fmt.Errorf("failed to apply agent MCP server settings: %w", err)
 				}
 			}
+
+			// Configure Telegram mode if requested
+			if opts.Telegram {
+				tc, ok := agentImpl.(agent.TelegramConfigurer)
+				if !ok {
+					return nil, fmt.Errorf("agent %q does not support Telegram mode", opts.Agent)
+				}
+				agentSettings, err = tc.ConfigureTelegram(agentSettings)
+				if err != nil {
+					return nil, fmt.Errorf("failed to configure Telegram mode: %w", err)
+				}
+
+				const telegramSecretName = "telegram-bot-token"
+				_, tokenValue, err := m.secretStore.Get(telegramSecretName)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get secret %q: create it with 'kdn secret create %s --type other --value <TOKEN> --host api.telegram.org --header x-unused --env TELEGRAM_BOT_TOKEN': %w", telegramSecretName, telegramSecretName, err)
+				}
+				tokenEnv := workspace.EnvironmentVariable{Name: "TELEGRAM_BOT_TOKEN"}
+				tokenEnv.Value = &tokenValue
+				if mergedConfig == nil {
+					mergedConfig = &workspace.WorkspaceConfiguration{}
+				}
+				if mergedConfig.Environment == nil {
+					env := []workspace.EnvironmentVariable{tokenEnv}
+					mergedConfig.Environment = &env
+				} else {
+					*mergedConfig.Environment = append(*mergedConfig.Environment, tokenEnv)
+				}
+			}
 		}
 		// If agent not found in registry, use settings as-is (not all agents may be implemented)
 	}
@@ -344,18 +376,25 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		}
 	}
 
+	// Determine terminal command override for headless modes
+	var terminalCommandOverride []string
+	if opts.Telegram {
+		terminalCommandOverride = []string{"/home/agent/telegram-start.sh"}
+	}
+
 	// Create runtime instance with merged configuration
 	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{
-		Name:               name,
-		SourcePath:         inst.GetSourceDir(),
-		WorkspaceConfig:    mergedConfig,
-		WorkspaceConfigDir: inst.GetConfigDir(),
-		Agent:              opts.Agent,
-		AgentSettings:      agentSettings,
-		OnecliSecrets:      onecliSecrets,
-		SecretEnvVars:      secretEnvVars,
-		ProjectID:          project,
-		RuntimeOptions:     opts.RuntimeOptions,
+		Name:                    name,
+		SourcePath:              inst.GetSourceDir(),
+		WorkspaceConfig:         mergedConfig,
+		WorkspaceConfigDir:      inst.GetConfigDir(),
+		Agent:                   opts.Agent,
+		AgentSettings:           agentSettings,
+		OnecliSecrets:           onecliSecrets,
+		SecretEnvVars:           secretEnvVars,
+		ProjectID:               project,
+		RuntimeOptions:          opts.RuntimeOptions,
+		TerminalCommandOverride: terminalCommandOverride,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
@@ -606,6 +645,13 @@ func (m *manager) Terminal(ctx context.Context, id string, command []string) err
 	terminalRT, ok := rt.(runtime.Terminal)
 	if !ok {
 		return fmt.Errorf("runtime %s does not support terminal sessions", runtimeData.Type)
+	}
+
+	// Use terminal command override from runtime info if no explicit command was given
+	if len(command) == 0 {
+		if tc, ok := runtimeData.Info["terminal_command"]; ok && tc != "" {
+			command = strings.Split(tc, " ")
+		}
 	}
 
 	// Start terminal session, passing the agent name

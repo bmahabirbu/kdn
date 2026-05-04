@@ -29,13 +29,43 @@ import (
 const (
 	// ClawConfigPath is the relative path to the OpenClaw configuration file.
 	ClawConfigPath = ".openclaw/openclaw.json"
+
+	// ClawTelegramScriptPath is the path where the Telegram startup script is placed.
+	ClawTelegramScriptPath = "telegram-start.sh"
+
+	// clawTelegramScript is the startup script for headless Telegram mode.
+	clawTelegramScript = `#!/bin/bash
+set -euo pipefail
+
+openclaw channels add --channel telegram --token "$TELEGRAM_BOT_TOKEN" 2>/dev/null
+
+openclaw gateway run --allow-unconfigured --auth none --bind loopback &
+GATEWAY_PID=$!
+sleep 3
+
+echo "Gateway running (PID $GATEWAY_PID). Auto-approving pairings..."
+
+while kill -0 "$GATEWAY_PID" 2>/dev/null; do
+  CODES=$(openclaw pairing list telegram --json 2>/dev/null | jq -r '.requests[]?.code // empty')
+  if [ -n "$CODES" ]; then
+    for code in $CODES; do
+      echo "Approving pairing: $code"
+      openclaw pairing approve telegram "$code" 2>/dev/null
+    done
+    sleep 5
+  else
+    sleep 30
+  fi
+done
+`
 )
 
 // clawAgent is the implementation of Agent for OpenClaw.
 type clawAgent struct{}
 
-// Compile-time check to ensure clawAgent implements Agent interface
+// Compile-time checks
 var _ Agent = (*clawAgent)(nil)
+var _ TelegramConfigurer = (*clawAgent)(nil)
 
 // NewClaw creates a new OpenClaw agent implementation.
 func NewClaw() Agent {
@@ -234,5 +264,16 @@ func (c *clawAgent) SetModel(settings map[string][]byte, modelID string) (map[st
 	}
 
 	settings[ClawConfigPath] = modifiedContent
+	return settings, nil
+}
+
+// ConfigureTelegram writes the Telegram startup script into the agent settings.
+// The script runs the OpenClaw gateway and auto-approves Telegram pairing requests.
+func (c *clawAgent) ConfigureTelegram(settings map[string][]byte) (map[string][]byte, error) {
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+
+	settings[ClawTelegramScriptPath] = []byte(clawTelegramScript)
 	return settings, nil
 }

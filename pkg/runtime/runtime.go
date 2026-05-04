@@ -100,6 +100,11 @@ type CreateParams struct {
 	// the CLI. Keys are flag names (matching FlagDef.Name), values are the
 	// user-provided strings. This map is nil when no runtime flags were set.
 	RuntimeOptions map[string]string
+
+	// TerminalCommandOverride replaces the default terminal command for this
+	// instance. When set, kdn terminal runs this command instead of the
+	// agent config's TerminalCommand. Used for headless modes like Telegram.
+	TerminalCommandOverride []string
 }
 
 // RuntimeInfo contains information about a runtime instance.

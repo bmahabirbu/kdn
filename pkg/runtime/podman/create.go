@@ -103,7 +103,11 @@ func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *con
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
 			}
-			if err := os.WriteFile(destPath, content, 0600); err != nil {
+			perm := os.FileMode(0600)
+			if strings.HasSuffix(relPath, ".sh") {
+				perm = 0755
+			}
+			if err := os.WriteFile(destPath, content, perm); err != nil {
 				return fmt.Errorf("failed to write agent settings file %s: %w", relPath, err)
 			}
 		}
@@ -517,6 +521,9 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 	if ccArgs != nil && ccArgs.caContainerPath != "" {
 		info["ca_container_path"] = ccArgs.caContainerPath
+	}
+	if len(params.TerminalCommandOverride) > 0 {
+		info["terminal_command"] = strings.Join(params.TerminalCommandOverride, " ")
 	}
 
 	return runtime.RuntimeInfo{

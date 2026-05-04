@@ -50,3 +50,10 @@ type Agent interface {
 	// Returns the modified settings map, or an error if modification fails.
 	SetMCPServers(settings map[string][]byte, mcp *workspace.McpConfiguration) (map[string][]byte, error)
 }
+
+// TelegramConfigurer is an optional interface that agents can implement to support
+// headless Telegram mode. When enabled, a startup script is baked into the agent
+// settings that runs the gateway and auto-approves Telegram pairing requests.
+type TelegramConfigurer interface {
+	ConfigureTelegram(settings map[string][]byte) (map[string][]byte, error)
+}

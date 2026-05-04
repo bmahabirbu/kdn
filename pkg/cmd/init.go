@@ -47,6 +47,7 @@ type initCmd struct {
 	project            string
 	agent              string
 	model              string
+	telegram           bool
 	absSourcesDir      string
 	absConfigDir       string
 	manager            instances.Manager
@@ -137,6 +138,11 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 			// Neither flag nor environment variable is set
 			return outputErrorIfJSON(cmd, i.output, fmt.Errorf("agent is required: use --agent flag or set KDN_DEFAULT_AGENT environment variable"))
 		}
+	}
+
+	// Validate --telegram is only used with claw agent
+	if i.telegram && i.agent != "claw" {
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("--telegram is only supported with the claw agent"))
 	}
 
 	// Determine start behavior: if flag is not set to true, check environment variable
@@ -240,6 +246,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		Project:         i.project,
 		Agent:           i.agent,
 		Model:           i.model,
+		Telegram:        i.telegram,
 		RuntimeOptions:  i.runtimeOptions,
 	})
 	if err != nil {
@@ -349,6 +356,9 @@ kdn init --runtime podman --agent opencode --model ollama::gemma4:26b::http://19
 # Register and start workspace
 kdn init --runtime podman --agent claude --start
 
+# Register OpenClaw workspace in headless Telegram mode
+kdn init --runtime podman --agent claw --model "google::gemini-2.5-flash" --telegram
+
 # Show detailed output
 kdn init --runtime podman --agent claude --verbose
 
@@ -377,6 +387,9 @@ kdn init --runtime podman --agent claude --show-logs`,
 
 	// Add model flag
 	cmd.Flags().StringVarP(&c.model, "model", "m", "", "Model ID to configure for the agent (optional)")
+
+	// Add telegram flag
+	cmd.Flags().BoolVar(&c.telegram, "telegram", false, "Run in headless Telegram mode using the telegram-bot-token secret (claw agent only)")
 
 	// Add start flag
 	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KDN_INIT_AUTO_START environment variable)")

@@ -60,7 +60,8 @@ func (o *openCodeAgent) SkipOnboarding(settings map[string][]byte, _ string) (ma
 // SetModel configures the model ID in OpenCode settings.
 // The modelID supports three formats:
 //   - "model" — sets the model directly
-//   - "provider::model" — sets provider/model and auto-configures the provider with its default base URL
+//   - "provider::model" — sets provider/model; uses default base URL for known providers (ollama, ramalama),
+//     omits baseURL for others so the provider resolves its own endpoint
 //   - "provider::model::baseURL" — sets provider/model and configures the provider with the given base URL
 //
 // All other fields in .config/opencode/opencode.json are preserved.
@@ -92,11 +93,7 @@ func (o *openCodeAgent) SetModel(settings map[string][]byte, modelID string) (ma
 		}
 		resolvedURL := baseURL
 		if resolvedURL == "" {
-			defaultURL, known := defaultProviderBaseURLs[provider]
-			if !known {
-				return nil, fmt.Errorf("unknown provider %q: append ::baseURL to specify the endpoint", provider)
-			}
-			resolvedURL = defaultURL
+			resolvedURL = defaultProviderBaseURLs[provider]
 		} else {
 			resolvedURL = containerurl.RewriteURL(resolvedURL)
 		}
@@ -143,12 +140,14 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 			"npm":  "@ai-sdk/openai-compatible",
 		}
 	}
-	options, _ := providerEntry["options"].(map[string]interface{})
-	if options == nil {
-		options = make(map[string]interface{})
+	if baseURL != "" {
+		options, _ := providerEntry["options"].(map[string]interface{})
+		if options == nil {
+			options = make(map[string]interface{})
+		}
+		options["baseURL"] = baseURL
+		providerEntry["options"] = options
 	}
-	options["baseURL"] = baseURL
-	providerEntry["options"] = options
 	providers[provider] = providerEntry
 
 	models, _ := providerEntry["models"].(map[string]interface{})

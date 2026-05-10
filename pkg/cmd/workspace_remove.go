@@ -131,11 +131,10 @@ func (w *workspaceRemoveCmd) run(cmd *cobra.Command, args []string) error {
 		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("workspace is running; stop it first or use --force"))
 	}
 
-	// If force flag is set and instance is running, stop it first
+	// If force flag is set and instance is running, try to stop it first
+	// but ignore errors (the container may already be gone)
 	if w.force && instance.GetRuntimeData().State == api.WorkspaceStateRunning {
-		if err := w.manager.Stop(ctx, instanceID); err != nil {
-			return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to stop running workspace: %w", err))
-		}
+		_ = w.manager.Stop(ctx, instanceID)
 	}
 
 	// Delete the instance
